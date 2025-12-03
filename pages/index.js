@@ -128,7 +128,7 @@ export default function Home() {
             </div>
           ))}
           <div style={{marginTop:10,fontSize:11,color:'#9ca3af'}}>
-            Later hum yahan “Generate AI Summary” ka button add karenge jo sari week ki story automatic likh dega.
+            Later hum yahan “Generate AI Summary” ka button add karenge jo sari week ki story automatic likh dega..
           </div>
         </div>
       </div>
