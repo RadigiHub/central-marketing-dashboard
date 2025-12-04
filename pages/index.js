@@ -1,6 +1,6 @@
 // pages/index.js
 import { useEffect, useState } from "react";
-import supabase from '../lib/queries';
+import { getBrandsWithStats } from "../lib/queries";  // ✅ correct import
 import StatusBadge from "../components/StatusBadge";
 
 export default function DashboardPage() {
@@ -8,24 +8,23 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-  async function loadBrands() {
-    try {
-      setLoading(true);
+    async function loadBrands() {
+      try {
+        setLoading(true);
 
-      // queries.js se helper call
-      const data = await getBrandsWithStats();
+        // helper call
+        const data = await getBrandsWithStats();
 
-      setBrands(data || []);
-    } catch (error) {
-      console.error("Error loading brands", error);
-    } finally {
-      setLoading(false);
+        setBrands(data || []);
+      } catch (error) {
+        console.error("Error loading brands:", error);
+      } finally {
+        setLoading(false);
+      }
     }
-  }
 
-  loadBrands();
-}, []);
-
+    loadBrands();
+  }, []);
 
   const total = brands.length;
   const onTrack = brands.filter((b) =>
@@ -42,25 +41,16 @@ export default function DashboardPage() {
         <div className="card">
           <div className="card-label">Total Brands</div>
           <div className="card-value">{total}</div>
-          <div className="card-footnote">
-            Across travel, fitness & digital products.
-          </div>
         </div>
 
         <div className="card">
           <div className="card-label">On Track</div>
           <div className="card-value text-green">{onTrack}</div>
-          <div className="card-footnote">
-            Stable performance & clear roadmap.
-          </div>
         </div>
 
         <div className="card">
           <div className="card-label">In Progress / Revamp</div>
           <div className="card-value text-amber">{inProgress}</div>
-          <div className="card-footnote">
-            Website revamps, SEO & new campaigns in motion.
-          </div>
         </div>
       </section>
 
@@ -90,7 +80,7 @@ export default function DashboardPage() {
                 {brands.map((b) => (
                   <tr key={b.id}>
                     <td className="table-brand-name">{b.name}</td>
-                    <td>{b["team lead"]}</td>
+                    <td>{b.team_lead}</td> {/* ✅ fixed */}
                     <td>
                       <StatusBadge status={b.status} />
                     </td>
