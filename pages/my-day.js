@@ -1,58 +1,46 @@
-import Layout from "../components/Layout";
-
+// pages/my-day.js
 const tasks = [
-  { time: "10:00", title: "Times Travel – Meta ads review", status: "In Progress" },
-  { time: "12:00", title: "DreamFare – Nigeria flights creative", status: "Not Started" },
-  { time: "15:00", title: "TripAfrica – homepage wireframe feedback", status: "In Progress" },
-  { time: "17:00", title: "Brookwood Cars – monthly report", status: "Done" },
+  {
+    title: "Check Meta Ads performance for Mashaallah Trips",
+    type: "Performance review",
+  },
+  {
+    title: "Review Travel Hunter website final testing",
+    type: "Web / QA",
+  },
+  {
+    title: "Plan content calendar for Times Fitness (new look)",
+    type: "Content",
+  },
+  {
+    title: "Align SEO priorities: 123 Flights & Umrah Planner",
+    type: "SEO",
+  },
 ];
 
-export default function MyDay() {
+export default function MyDayPage() {
   return (
-    <Layout
-      title="My Day"
-      subtitle="Daily focus view – jo kaam aaj close karna hai."
-    >
-      <div className="card">
-        <h3>Today&apos;s Focus</h3>
-        <p className="muted">
-          Ye page tumhare ya team member ka personal daily view ho sakta hai. Baad me hum login
-          / user wise filtering add kar sakte hain.
+    <div>
+      <div className="section-header">
+        <h2 className="section-title">My Day</h2>
+        <p className="section-subtitle">
+          Quick list of priority tasks for Central Marketing lead.
         </p>
       </div>
 
-      <div className="table-wrapper" style={{ marginTop: 16 }}>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Time</th>
-              <th>Task</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {tasks.map((t, i) => (
-              <tr key={i}>
-                <td>{t.time}</td>
-                <td>{t.title}</td>
-                <td>
-                  <span
-                    className={
-                      t.status === "Done"
-                        ? "pill pill-green"
-                        : t.status === "In Progress"
-                        ? "pill pill-amber"
-                        : "pill pill-red"
-                    }
-                  >
-                    {t.status}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="card">
+        <ul className="task-list">
+          {tasks.map((t, idx) => (
+            <li key={idx} className="task-item">
+              <div className="task-dot" />
+              <div>
+                <div className="task-title">{t.title}</div>
+                <div className="task-type">{t.type}</div>
+              </div>
+            </li>
+          ))}
+        </ul>
       </div>
-    </Layout>
+    </div>
   );
 }
