@@ -1,6 +1,6 @@
 // pages/index.js
 import { useEffect, useState } from "react";
-import { supabase } from "../lib/supabase";
+import supabase from '../lib/supabase';
 import StatusBadge from "../components/StatusBadge";
 
 export default function DashboardPage() {
