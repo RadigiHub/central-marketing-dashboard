@@ -1,6 +1,6 @@
 // pages/index.js
 import { useEffect, useState } from "react";
-import supabase from '../lib/supabase';
+import supabase from '../lib/queries';
 import StatusBadge from "../components/StatusBadge";
 
 export default function DashboardPage() {
@@ -8,22 +8,24 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadBrands() {
-      const { data, error } = await supabase
-        .from("Brands")
-        .select("*")
-        .order("name", { ascending: true });
+  async function loadBrands() {
+    try {
+      setLoading(true);
 
-      if (error) {
-        console.error(error);
-      } else {
-        setBrands(data || []);
-      }
+      // queries.js se helper call
+      const data = await getBrandsWithStats();
+
+      setBrands(data || []);
+    } catch (error) {
+      console.error("Error loading brands", error);
+    } finally {
       setLoading(false);
     }
+  }
 
-    loadBrands();
-  }, []);
+  loadBrands();
+}, []);
+
 
   const total = brands.length;
   const onTrack = brands.filter((b) =>
