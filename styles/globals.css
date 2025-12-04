@@ -388,3 +388,190 @@ a {
   color: #e5e7eb;
   margin-top: 6px;
 }
+/* just examples – adjust to match your design */
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.75rem;
+}
+
+.page-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.page-subtitle {
+  color: #94a3b8;
+  margin-top: 0.25rem;
+}
+
+/* Toolbar */
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.toolbar-group {
+  display: flex;
+  gap: 0.75rem;
+}
+
+/* Pills */
+.pill {
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.pill-success {
+  background: rgba(22, 163, 74, 0.1);
+  color: #4ade80;
+}
+
+.pill-warning {
+  background: rgba(234, 179, 8, 0.1);
+  color: #facc15;
+}
+
+.pill-neutral {
+  background: rgba(148, 163, 184, 0.15);
+  color: #e2e8f0;
+}
+
+.pill-priority-1 {
+  background: rgba(248, 113, 113, 0.1);
+  color: #fca5a5;
+}
+
+.pill-priority-2 {
+  background: rgba(251, 191, 36, 0.1);
+  color: #fde68a;
+}
+
+.pill-priority-3 {
+  background: rgba(148, 163, 184, 0.15);
+  color: #cbd5f5;
+}
+
+/* Modal */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 40;
+}
+
+.modal {
+  background: #020617;
+  border-radius: 1rem;
+  border: 1px solid #1e293b;
+  width: 720px;
+  max-width: 95vw;
+  padding: 1.5rem 1.75rem;
+}
+
+.modal-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 1.25rem;
+}
+
+.form-grid label,
+.full-width {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+/* Brand cell */
+.cell-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.brand-logo {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  object-fit: cover;
+}
+
+.brand-link {
+  font-size: 0.75rem;
+  color: #38bdf8;
+}
+
+/* Simple bar list for analytics */
+.bar-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.bar-row {
+  display: grid;
+  grid-template-columns: 140px 1fr 40px;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.bar-track {
+  background: #0f172a;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 8px;
+  background: linear-gradient(90deg, #22c55e, #0ea5e9);
+}
+
+/* Task list */
+.task-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.task-title {
+  font-weight: 500;
+}
+
+.task-meta {
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+.task-desc {
+  font-size: 0.85rem;
+  color: #cbd5f5;
+}
