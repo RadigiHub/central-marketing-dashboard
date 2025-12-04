@@ -1,43 +1,63 @@
+// components/Layout.js
 import Link from "next/link";
 import { useRouter } from "next/router";
 
-export default function Layout({ title, subtitle, children }) {
+const navItems = [
+  { href: "/", label: "Dashboard" },
+  { href: "/brands", label: "Brands" },
+  { href: "/my-day", label: "My Day" },
+  { href: "/team", label: "Team" },
+];
+
+export default function Layout({ children }) {
   const router = useRouter();
 
-  const isActive = (path) => (router.pathname === path ? "nav-link active" : "nav-link");
-
   return (
-    <div className="app-layout">
+    <div className="app-shell">
+      {/* Sidebar */}
       <aside className="sidebar">
-        <h1>Central Marketing</h1>
-        <p className="tagline">All brands • One dashboard</p>
-
-        <p className="nav-section-title">Overview</p>
-        <Link href="/" className={isActive("/")}>
-          📊 Dashboard
-        </Link>
-
-        <p className="nav-section-title">Operations</p>
-        <Link href="/brands" className={isActive("/brands")}>
-          🏷️ Brands
-        </Link>
-        <Link href="/my-day" className={isActive("/my-day")}>
-          ✅ My Day
-        </Link>
-        <Link href="/team" className={isActive("/team")}>
-          👥 Team
-        </Link>
-      </aside>
-
-      <main className="main">
-        <div className="main-header">
+        <div className="sidebar-header">
+          <div className="logo-circle">CM</div>
           <div>
-            <h2>{title}</h2>
-            {subtitle && <p className="subtitle">{subtitle}</p>}
+            <div className="sidebar-title">Central Marketing</div>
+            <div className="sidebar-subtitle">Operations Dashboard</div>
           </div>
         </div>
-        {children}
-      </main>
+
+        <nav className="nav">
+          {navItems.map((item) => {
+            const active = router.pathname === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`nav-item ${active ? "nav-item-active" : ""}`}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="sidebar-footer">
+          <div className="sidebar-footer-title">Central Marketing Lead</div>
+          <div className="sidebar-footer-name">Shehroz Malik</div>
+        </div>
+      </aside>
+
+      {/* Main area */}
+      <div className="main">
+        <header className="topbar">
+          <div>
+            <h1 className="topbar-title">Central Marketing Dashboard</h1>
+            <p className="topbar-subtitle">
+              Snapshot of all brands, campaigns & team focus.
+            </p>
+          </div>
+        </header>
+
+        <main className="content">{children}</main>
+      </div>
     </div>
   );
 }
