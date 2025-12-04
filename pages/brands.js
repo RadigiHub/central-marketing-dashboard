@@ -33,10 +33,12 @@ export default function BrandsPage() {
   async function fetchBrands() {
     setLoading(true);
     setError(null);
+
+    // NOTE: ordered by name only so it works even if "priority" column
+    // doesn't exist yet in Supabase. You can add .order('priority') later.
     const { data, error } = await supabase
       .from('Brands')
       .select('*')
-      .order('priority', { ascending: true })
       .order('name', { ascending: true });
 
     if (error) {
@@ -48,7 +50,7 @@ export default function BrandsPage() {
     setLoading(false);
   }
 
-  // 🔹 Derived filters
+  // 🔹 Derived team lead options
   const teamLeads = useMemo(() => {
     const leads = new Set();
     brands.forEach((b) => {
@@ -57,19 +59,19 @@ export default function BrandsPage() {
     return ['All', ...Array.from(leads)];
   }, [brands]);
 
+  // 🔹 Filtered list
   const filteredBrands = useMemo(() => {
     return brands.filter((b) => {
       if (statusFilter !== 'All' && b.status !== statusFilter) return false;
       if (leadFilter !== 'All' && b.team_lead !== leadFilter) return false;
-      if (
-        search &&
-        !b.name.toLowerCase().includes(search.toLowerCase()) &&
-        !(b.current_focus || '')
-          .toLowerCase()
-          .includes(search.toLowerCase())
-      ) {
-        return false;
+
+      if (search) {
+        const term = search.toLowerCase();
+        const nameMatch = (b.name || '').toLowerCase().includes(term);
+        const focusMatch = (b.current_focus || '').toLowerCase().includes(term);
+        if (!nameMatch && !focusMatch) return false;
       }
+
       return true;
     });
   }, [brands, statusFilter, leadFilter, search]);
@@ -193,11 +195,12 @@ export default function BrandsPage() {
         </div>
       </div>
 
-      {/* Table */}
+      {/* Brand table card */}
       <div className="card">
         <div className="card-header">
           <h2 className="card-title">
-            Brand Snapshot <span className="muted">({filteredBrands.length})</span>
+            Brand Snapshot{' '}
+            <span className="muted">({filteredBrands.length})</span>
           </h2>
         </div>
 
@@ -206,25 +209,31 @@ export default function BrandsPage() {
         ) : error ? (
           <div className="card-body error">{error}</div>
         ) : (
-          <div className="table-wrapper">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Brand</th>
-                  <th>Team Lead</th>
-                  <th>Status</th>
-                  <th>Priority</th>
-                  <th>Current Focus</th>
-                  <th>Category</th>
-                  <th>Last Updated</th>
-                  <th style={{ width: 120 }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredBrands.map((brand) => (
-                  <tr key={brand.id}>
-                    <td>
-                      <div className="cell-brand">
+          <div className="card-body table-wrapper">
+            <div className="table-shell">
+              {/* Header row */}
+              <div className="table-head-row">
+                <div>Brand</div>
+                <div>Team Lead</div>
+                <div>Status</div>
+                <div>Priority</div>
+                <div>Current Focus</div>
+                <div>Category</div>
+                <div>Last Updated</div>
+                <div className="table-col-actions">Actions</div>
+              </div>
+
+              {/* Body */}
+              <div className="table-body">
+                {filteredBrands.length === 0 ? (
+                  <div className="empty table-empty">
+                    No brands match your filters.
+                  </div>
+                ) : (
+                  filteredBrands.map((brand) => (
+                    <div key={brand.id} className="table-row">
+                      {/* Brand + logo */}
+                      <div className="table-cell-brand">
                         {brand.logo_url && (
                           <img
                             src={brand.logo_url}
@@ -246,24 +255,46 @@ export default function BrandsPage() {
                           )}
                         </div>
                       </div>
-                    </td>
-                    <td>{brand.team_lead || '—'}</td>
-                    <td>
-                      <StatusPill status={brand.status} />
-                    </td>
-                    <td>
-                      <span className={`pill pill-priority-${brand.priority || 3}`}>
-                        {PRIORITY_LABELS[brand.priority || 3]}
-                      </span>
-                    </td>
-                    <td>{brand.current_focus}</td>
-                    <td>{brand.category || '—'}</td>
-                    <td>
-                      {brand.last_update
-                        ? new Date(brand.last_update).toLocaleString()
-                        : '—'}
-                    </td>
-                    <td>
+
+                      {/* Team lead */}
+                      <div className="table-team-lead">
+                        {brand.team_lead || '—'}
+                      </div>
+
+                      {/* Status */}
+                      <div className="table-status-cell">
+                        <StatusPill status={brand.status} />
+                      </div>
+
+                      {/* Priority */}
+                      <div className="table-priority-cell">
+                        <span
+                          className={`pill pill-priority-${
+                            brand.priority || 3
+                          }`}
+                        >
+                          {PRIORITY_LABELS[brand.priority || 3]}
+                        </span>
+                      </div>
+
+                      {/* Current focus */}
+                      <div className="table-focus">
+                        {brand.current_focus || '—'}
+                      </div>
+
+                      {/* Category */}
+                      <div className="table-category">
+                        {brand.category || '—'}
+                      </div>
+
+                      {/* Last updated */}
+                      <div className="table-updated">
+                        {brand.last_update
+                          ? new Date(brand.last_update).toLocaleString()
+                          : '—'}
+                      </div>
+
+                      {/* Actions */}
                       <div className="table-actions">
                         <button
                           className="btn btn-ghost"
@@ -279,19 +310,11 @@ export default function BrandsPage() {
                           {deletingId === brand.id ? 'Deleting…' : 'Delete'}
                         </button>
                       </div>
-                    </td>
-                  </tr>
-                ))}
-
-                {filteredBrands.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="empty">
-                      No brands match your filters.
-                    </td>
-                  </tr>
+                    </div>
+                  ))
                 )}
-              </tbody>
-            </table>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -308,7 +331,7 @@ export default function BrandsPage() {
   );
 }
 
-// 🔹 Status badge component
+// 🔹 Status badge pill (hooks into .pill, .pill-success, .pill-warning etc.)
 function StatusPill({ status }) {
   const normalized = (status || '').toLowerCase();
   let variant = 'neutral';
