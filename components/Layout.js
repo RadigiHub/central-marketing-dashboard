@@ -61,6 +61,3 @@ export default function Layout({ children }) {
     </div>
   );
 }
-<li>
-  <a href="/analytics">Analytics</a>
-</li>
