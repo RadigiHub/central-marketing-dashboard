@@ -1,25 +1,47 @@
+// pages/analytics.js
 import { useEffect, useState } from "react";
-import { getDailyUpdates } from "../lib/queries";
 import Layout from "../components/Layout";
+import supabase from "../lib/supabase";
 
 export default function AnalyticsPage() {
+  const [brands, setBrands] = useState([]);
   const [updates, setUpdates] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function load() {
-      const data = await getDailyUpdates();
-      setUpdates(data || []);
-      setLoading(false);
-    }
-    load();
+    loadData();
   }, []);
 
-  const grouped = updates.reduce((acc, row) => {
-    if (!acc[row.brand?.name]) acc[row.brand?.name] = [];
-    acc[row.brand?.name].push(row);
-    return acc;
-  }, {});
+  async function loadData() {
+    setLoading(true);
+
+    const { data: brandsData } = await supabase
+      .from("Brands")
+      .select("*")
+      .order("priority", { ascending: true });
+
+    const { data: updatesData } = await supabase
+      .from("daily_updates")
+      .select("*, brand:Brands(name)")
+      .order("date", { ascending: false });
+
+    setBrands(brandsData || []);
+    setUpdates(updatesData || []);
+    setLoading(false);
+  }
+
+  function getLatestUpdate(brandId) {
+    return updates.find((u) => u.brand_id === brandId);
+  }
+
+  function getStatusIcon(status) {
+    if (!status) return "⚪";
+    const s = status.toLowerCase();
+    if (s.includes("done")) return "🟢";
+    if (s.includes("progress")) return "🟡";
+    if (s.includes("blocked")) return "🔴";
+    return "🔘";
+  }
 
   return (
     <Layout>
@@ -29,35 +51,43 @@ export default function AnalyticsPage() {
       </p>
 
       {loading ? (
-        <div>Loading…</div>
+        <div className="card">Loading…</div>
       ) : (
-        Object.keys(grouped).map((brand) => (
-          <div key={brand} className="card mb-lg">
-            <h2 className="card-title">{brand}</h2>
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Assignee</th>
-                  <th>Status</th>
-                  <th>Focus</th>
-                  <th>Impact</th>
-                </tr>
-              </thead>
-              <tbody>
-                {grouped[brand].map((u) => (
-                  <tr key={u.id}>
-                    <td>{u.date}</td>
-                    <td>{u.assignee}</td>
-                    <td>{u.status}</td>
-                    <td>{u.focus}</td>
-                    <td>{u.impact}</td>
+        <div className="card table-card">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Brand</th>
+                <th>Team Lead</th>
+                <th>Latest Status</th>
+                <th>Today Focus</th>
+                <th>Impact</th>
+                <th>Last Update</th>
+              </tr>
+            </thead>
+            <tbody>
+              {brands.map((b) => {
+                const latest = getLatestUpdate(b.id);
+                return (
+                  <tr key={b.id}>
+                    <td className="table-brand-name">{b.name}</td>
+                    <td>{b.team_lead}</td>
+                    <td>
+                      {getStatusIcon(latest?.status)} {latest?.status || "—"}
+                    </td>
+                    <td>{latest?.focus || "—"}</td>
+                    <td>{latest?.impact || "—"}</td>
+                    <td>
+                      {latest?.date
+                        ? new Date(latest.date).toLocaleString()
+                        : "—"}
+                    </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ))
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </Layout>
   );
