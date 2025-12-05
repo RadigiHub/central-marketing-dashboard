@@ -5,7 +5,6 @@ import supabase from '../lib/supabase';
 import Layout from '../components/Layout';
 
 const STATUS_OPTIONS = ['All', 'On Track', 'In Progress'];
-
 const PRIORITY_LABELS = {
   1: 'High',
   2: 'Medium',
@@ -26,7 +25,7 @@ export default function BrandsPage() {
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
 
-  // Load brands from Supabase
+  // 🔹 Load brands from Supabase
   useEffect(() => {
     fetchBrands();
   }, []);
@@ -38,7 +37,7 @@ export default function BrandsPage() {
     const { data, error } = await supabase
       .from('Brands')
       .select('*')
-      .order('name', { ascending: true }); // safe even if priority missing
+      .order('name', { ascending: true });
 
     if (error) {
       console.error(error);
@@ -49,25 +48,27 @@ export default function BrandsPage() {
     setLoading(false);
   }
 
-  // Team lead filter options
+  // 🔹 Derived team lead options  (using "team lead" column from DB)
   const teamLeads = useMemo(() => {
     const leads = new Set();
     brands.forEach((b) => {
-      if (b.team_lead) leads.add(b.team_lead);
+      if (b['team lead']) leads.add(b['team lead']);
     });
     return ['All', ...Array.from(leads)];
   }, [brands]);
 
-  // Filtered list
+  // 🔹 Filtered list
   const filteredBrands = useMemo(() => {
     return brands.filter((b) => {
       if (statusFilter !== 'All' && b.status !== statusFilter) return false;
-      if (leadFilter !== 'All' && b.team_lead !== leadFilter) return false;
+      if (leadFilter !== 'All' && b['team lead'] !== leadFilter) return false;
 
       if (search) {
         const term = search.toLowerCase();
         const nameMatch = (b.name || '').toLowerCase().includes(term);
-        const focusMatch = (b.current_focus || '').toLowerCase().includes(term);
+        const focusMatch = (b.current_focus || '')
+          .toLowerCase()
+          .includes(term);
         if (!nameMatch && !focusMatch) return false;
       }
 
@@ -90,18 +91,18 @@ export default function BrandsPage() {
     setShowModal(false);
   }
 
-  // Create / Update brand
+  // 🔹 Create / Update brand
   async function handleSaveBrand(values) {
     setSaving(true);
     try {
       const payload = {
         name: values.name,
-        team_lead: values.team_lead,
+        // 👇 yahan se DB ko "team lead" naam ka column bhej rahe hain
+        ['team lead']: values.team_lead,
         status: values.status,
         current_focus: values.current_focus,
         website_url: values.website_url || null,
         category: values.category || null,
-        // 👇 make sure priority is numeric, default = 3 (Normal)
         priority: values.priority ? Number(values.priority) : 3,
         logo_url: values.logo_url || null,
       };
@@ -127,7 +128,7 @@ export default function BrandsPage() {
     }
   }
 
-  // Delete brand
+  // 🔹 Delete brand
   async function handleDeleteBrand(id) {
     if (!window.confirm('Delete this brand from dashboard?')) return;
     setDeletingId(id);
@@ -199,7 +200,8 @@ export default function BrandsPage() {
       <div className="card">
         <div className="card-header">
           <h2 className="card-title">
-            Brand Snapshot <span className="muted">({filteredBrands.length})</span>
+            Brand Snapshot{' '}
+            <span className="muted">({filteredBrands.length})</span>
           </h2>
         </div>
 
@@ -257,7 +259,7 @@ export default function BrandsPage() {
 
                       {/* Team lead */}
                       <div className="table-team-lead">
-                        {brand.team_lead || '—'}
+                        {brand['team lead'] || '—'}
                       </div>
 
                       {/* Status */}
@@ -268,7 +270,9 @@ export default function BrandsPage() {
                       {/* Priority */}
                       <div className="table-priority-cell">
                         <span
-                          className={`pill pill-priority-${brand.priority || 3}`}
+                          className={`pill pill-priority-${
+                            brand.priority || 3
+                          }`}
                         >
                           {PRIORITY_LABELS[brand.priority || 3]}
                         </span>
@@ -328,7 +332,7 @@ export default function BrandsPage() {
   );
 }
 
-// Status badge pill
+// 🔹 Status badge pill
 function StatusPill({ status }) {
   const normalized = (status || '').toLowerCase();
   let variant = 'neutral';
@@ -338,21 +342,18 @@ function StatusPill({ status }) {
   return <span className={`pill pill-${variant}`}>{status || '—'}</span>;
 }
 
-// Modal form for create / edit
+// 🔹 Modal form for create / edit
 function BrandFormModal({ brand, onCancel, onSave, saving }) {
   const [form, setForm] = useState({
     id: brand?.id || null,
     name: brand?.name || '',
-    team_lead: brand?.team_lead || '',
+    // 👇 brand se value nikalte waqt bhi "team lead" se hi le rahe hain
+    team_lead: brand ? brand['team lead'] || '' : '',
     status: brand?.status || 'On Track',
     current_focus: brand?.current_focus || '',
     website_url: brand?.website_url || '',
     category: brand?.category || '',
-    // 👇 default 3 (Normal) and keep as number
-    priority:
-      typeof brand?.priority === 'number' && brand.priority > 0
-        ? brand.priority
-        : 3,
+    priority: brand?.priority || 3,
     logo_url: brand?.logo_url || '',
   });
 
@@ -414,9 +415,7 @@ function BrandFormModal({ brand, onCancel, onSave, saving }) {
               <select
                 className="select"
                 value={form.priority}
-                onChange={(e) =>
-                  updateField('priority', Number(e.target.value))
-                }
+                onChange={(e) => updateField('priority', e.target.value)}
               >
                 <option value={1}>High</option>
                 <option value={2}>Medium</option>
