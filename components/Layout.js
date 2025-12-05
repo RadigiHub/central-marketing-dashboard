@@ -7,6 +7,7 @@ const navItems = [
   { href: "/brands", label: "Brands" },
   { href: "/my-day", label: "My Day" },
   { href: "/team", label: "Team" },
+  { href: "/analytics", label: "Analytics" }, // ✅ NEW ITEM ADDED HERE
 ];
 
 export default function Layout({ children }) {
@@ -24,6 +25,7 @@ export default function Layout({ children }) {
           </div>
         </div>
 
+        {/* Navigation */}
         <nav className="nav">
           {navItems.map((item) => {
             const active = router.pathname === item.href;
