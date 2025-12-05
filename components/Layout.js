@@ -7,7 +7,8 @@ const navItems = [
   { href: "/brands", label: "Brands" },
   { href: "/my-day", label: "My Day" },
   { href: "/team", label: "Team" },
-  { href: "/analytics", label: "Analytics" }, // ✅ NEW ITEM ADDED HERE
+  { href: "/team-updates", label: "Team Updates" }, // NEW
+  { href: "/analytics", label: "Analytics" },        // NEW
 ];
 
 export default function Layout({ children }) {
@@ -25,7 +26,6 @@ export default function Layout({ children }) {
           </div>
         </div>
 
-        {/* Navigation */}
         <nav className="nav">
           {navItems.map((item) => {
             const active = router.pathname === item.href;
@@ -53,7 +53,7 @@ export default function Layout({ children }) {
           <div>
             <h1 className="topbar-title">Central Marketing Dashboard</h1>
             <p className="topbar-subtitle">
-              Snapshot of all brands, campaigns & team focus.
+              Snapshot of all brands, campaigns &amp; team focus.
             </p>
           </div>
         </header>
