@@ -102,7 +102,7 @@ export default function MyDayPage() {
                 onChange={(e) =>
                   setForm((f) => ({ ...f, assignee: e.target.value }))
                 }
-                placeholder="e.g. Muskan, Tahir, Imran"
+                placeholder="e.g. Muskan, Tahir, Noraiz"
               />
             </label>
 
@@ -171,7 +171,7 @@ export default function MyDayPage() {
               <tbody>
                 {updates.map((u) => (
                   <tr key={u.id}>
-                    <td>{u.date}</td>
+                    <td>{new Date(u.created_at).toLocaleDateString()}</td>
                     <td>{u.brand?.name}</td>
                     <td>{u.assignee}</td>
                     <td>{u.status}</td>
