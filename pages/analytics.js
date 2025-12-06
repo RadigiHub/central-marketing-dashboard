@@ -15,21 +15,44 @@ export default function AnalyticsPage() {
   async function loadData() {
     setLoading(true);
 
-    const { data: brandsData } = await supabase
+    // Brands – same pattern as queries.js (team lead alias)
+    const { data: brandsData, error: brandsError } = await supabase
       .from("Brands")
-      .select("*")
-      .order("priority", { ascending: true });
+      .select('id, name, status, current_focus, team_lead:"team lead"')
+      .order("priority", { ascending: true })
+      .order("name", { ascending: true });
 
-    const { data: updatesData } = await supabase
+    if (brandsError) {
+      console.error("Error loading brands", brandsError);
+    }
+
+    // Daily updates – use created_at instead of date
+    const { data: updatesData, error: updatesError } = await supabase
       .from("daily_updates")
-      .select("*, brand:Brands(name)")
-      .order("date", { ascending: false });
+      .select(
+        `
+        id,
+        brand_id,
+        created_at,
+        assignee,
+        status,
+        focus,
+        impact,
+        brand:Brands ( name )
+      `
+      )
+      .order("created_at", { ascending: false });
+
+    if (updatesError) {
+      console.error("Error loading updates", updatesError);
+    }
 
     setBrands(brandsData || []);
     setUpdates(updatesData || []);
     setLoading(false);
   }
 
+  // list already created_at DESC hai, to first match hi latest hoga
   function getLatestUpdate(brandId) {
     return updates.find((u) => u.brand_id === brandId);
   }
@@ -71,15 +94,15 @@ export default function AnalyticsPage() {
                 return (
                   <tr key={b.id}>
                     <td className="table-brand-name">{b.name}</td>
-                    <td>{b.team_lead}</td>
+                    <td>{b.team_lead || "—"}</td>
                     <td>
                       {getStatusIcon(latest?.status)} {latest?.status || "—"}
                     </td>
                     <td>{latest?.focus || "—"}</td>
                     <td>{latest?.impact || "—"}</td>
                     <td>
-                      {latest?.date
-                        ? new Date(latest.date).toLocaleString()
+                      {latest?.created_at
+                        ? new Date(latest.created_at).toLocaleString()
                         : "—"}
                     </td>
                   </tr>
