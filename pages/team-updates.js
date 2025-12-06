@@ -6,7 +6,7 @@ import supabase from "../lib/supabase";
 
 export default function TeamUpdatesPage() {
   const [selectedDate, setSelectedDate] = useState(
-    new Date().toISOString().slice(0, 10)
+    new Date().toISOString().slice(0, 10) // YYYY-MM-DD
   );
   const [updates, setUpdates] = useState([]);
   const [brands, setBrands] = useState([]);
@@ -90,13 +90,17 @@ export default function TeamUpdatesPage() {
     setLoading(true);
     setError(null);
 
+    // selectedDate = "YYYY-MM-DD"
+    const start = new Date(selectedDate);
+    const end = new Date(selectedDate);
+    end.setDate(end.getDate() + 1); // next day
+
     const { data, error } = await supabase
       .from("daily_updates")
       .select(
         `
         id,
         brand_id,
-        date,
         created_at,
         assignee,
         status,
@@ -105,7 +109,8 @@ export default function TeamUpdatesPage() {
         Brands ( name )
       `
       )
-      .eq("date", selectedDate)
+      .gte("created_at", start.toISOString())
+      .lt("created_at", end.toISOString())
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -147,11 +152,10 @@ export default function TeamUpdatesPage() {
 
         if (error) throw error;
       } else {
-        // INSERT
+        // INSERT (created_at Supabase khud set karega)
         const { error } = await supabase.from("daily_updates").insert([
           {
             brand_id: form.brand_id,
-            date: selectedDate,
             assignee: form.assignee,
             status: form.status,
             focus: form.focus,
