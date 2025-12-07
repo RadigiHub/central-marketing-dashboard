@@ -11,7 +11,8 @@ const navItems = [
   { href: "/team", label: "Team" },
   { href: "/team-updates", label: "Team Updates" },
   { href: "/analytics", label: "Analytics" },
-  { href: "/brand-analytics", label: "Brand Analytics" }, // ✅ Added NEW
+  { href: "/brand-analytics", label: "Brand Analytics" },
+  { href: "/add-campaign", label: "Add Data" }, // ✅ naya page
 ];
 
 export default function Layout({ children }) {
@@ -20,40 +21,46 @@ export default function Layout({ children }) {
 
   const role = profile?.role || null;
 
-  // 👉 role ke hisaab se sidebar visibility
+  // 👉 role ke hisaab se sidebar items
   let visibleNavItems;
 
   if (role === "super_admin") {
-    visibleNavItems = navItems; // full
+    // super admin: full access, Add Data bhi
+    visibleNavItems = navItems;
   } else if (role === "boss") {
-    // boss ko sirf My Day hide
-    visibleNavItems = navItems.filter((item) => item.href !== "/my-day");
+    // boss: sab dikhega, sirf My Day + Add Data HIDE
+    visibleNavItems = navItems.filter(
+      (item) => item.href !== "/my-day" && item.href !== "/add-campaign"
+    );
   } else if (role === "manager") {
+    // manager: dashboard + brands + team + team updates + brand analytics
     visibleNavItems = navItems.filter((item) =>
-      [
-        "/",
-        "/brands",
-        "/team",
-        "/team-updates",
-        "/brand-analytics", // manager ko analytics view milega
-      ].includes(item.href)
+      ["/", "/brands", "/team", "/team-updates", "/brand-analytics"].includes(
+        item.href
+      )
     );
   } else if (role === "core_team") {
-    // core team cannot see full analytics
+    // core team: dashboard + My Day + team updates
     visibleNavItems = navItems.filter((item) =>
       ["/", "/my-day", "/team-updates"].includes(item.href)
     );
   } else {
+    // unknown role: sirf dashboard
     visibleNavItems = navItems.filter((item) => item.href === "/");
   }
 
   const displayName = profile?.full_name || user?.email || "User";
 
   let displayRole = "";
-  if (role === "super_admin") displayRole = "Central Marketing – Super Admin";
-  if (role === "boss") displayRole = "Head of Central Marketing";
-  if (role === "manager") displayRole = "Central Marketing – Manager";
-  if (role === "core_team") displayRole = "Central Marketing – Core Team";
+  if (role === "super_admin") {
+    displayRole = "Central Marketing – Super Admin";
+  } else if (role === "boss") {
+    displayRole = "Head of Central Marketing";
+  } else if (role === "manager") {
+    displayRole = "Central Marketing – Manager";
+  } else if (role === "core_team") {
+    displayRole = "Central Marketing – Core Team";
+  }
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -64,6 +71,7 @@ export default function Layout({ children }) {
 
   return (
     <div className="app-shell">
+      {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-header">
           <div className="logo-circle">CM</div>
@@ -78,7 +86,9 @@ export default function Layout({ children }) {
             <Link
               key={item.href}
               href={item.href}
-              className={`nav-item ${isActive(item.href) ? "nav-item-active" : ""}`}
+              className={`nav-item ${
+                isActive(item.href) ? "nav-item-active" : ""
+              }`}
             >
               {item.label}
             </Link>
@@ -89,18 +99,25 @@ export default function Layout({ children }) {
           <div className="sidebar-footer-title">{displayRole}</div>
           <div className="sidebar-footer-name">{displayName}</div>
 
-          <button type="button" className="sidebar-logout" onClick={handleLogout}>
+          <button
+            type="button"
+            className="sidebar-logout"
+            onClick={handleLogout}
+          >
             Logout
           </button>
         </div>
       </aside>
 
+      {/* Main content */}
       <div className="main">
         <header className="topbar">
-          <h1 className="topbar-title">Central Marketing Dashboard</h1>
-          <p className="topbar-subtitle">
-            Snapshot of all brands, campaigns & team focus.
-          </p>
+          <div>
+            <h1 className="topbar-title">Central Marketing Dashboard</h1>
+            <p className="topbar-subtitle">
+              Snapshot of all brands, campaigns &amp; team focus.
+            </p>
+          </div>
         </header>
 
         <main className="content">{children}</main>
