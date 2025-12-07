@@ -1,18 +1,61 @@
 // components/Layout.js
 import Link from "next/link";
 import { useRouter } from "next/router";
+import supabase from "../lib/supabase";
+import { useAuth } from "../lib/auth";
 
 const navItems = [
   { href: "/", label: "Dashboard" },
   { href: "/brands", label: "Brands" },
   { href: "/my-day", label: "My Day" },
   { href: "/team", label: "Team" },
-  { href: "/team-updates", label: "Team Updates" }, // NEW
-  { href: "/analytics", label: "Analytics" },        // NEW
+  { href: "/team-updates", label: "Team Updates" },
+  { href: "/analytics", label: "Analytics" }, // NEW
 ];
 
 export default function Layout({ children }) {
   const router = useRouter();
+  const { user, profile, loading } = useAuth();
+
+  if (loading) {
+    return <div className="loading-screen">Loading...</div>;
+  }
+
+  if (!user) {
+    return (
+      <div className="loading-screen">
+        <p>You are not signed in.</p>
+        <button
+          onClick={() => router.push("/login")}
+          className="btn-primary"
+        >
+          Go to login
+        </button>
+      </div>
+    );
+  }
+
+  let filteredNavItems = navItems;
+
+  if (profile?.role === "core_team") {
+    filteredNavItems = navItems.filter((item) =>
+      ["/my-day", "/team-updates"].includes(item.href)
+    );
+  } else if (profile?.role === "boss" || profile?.role === "super_admin") {
+    filteredNavItems = navItems;
+  } else {
+    filteredNavItems = [];
+  }
+
+  const displayName = profile?.full_name || "User";
+  const displayRole =
+    profile?.role === "boss"
+      ? "Head of Central Marketing"
+      : profile?.role === "super_admin"
+      ? "Central Marketing – Super Admin"
+      : profile?.role === "core_team"
+      ? "Central Marketing – Core Team"
+      : "";
 
   return (
     <div className="app-shell">
@@ -20,14 +63,12 @@ export default function Layout({ children }) {
       <aside className="sidebar">
         <div className="sidebar-header">
           <div className="logo-circle">CM</div>
-          <div>
-            <div className="sidebar-title">Central Marketing</div>
-            <div className="sidebar-subtitle">Operations Dashboard</div>
-          </div>
+          <div className="sidebar-title">Central Marketing</div>
+          <div className="sidebar-subtitle">Operations Dashboard</div>
         </div>
 
         <nav className="nav">
-          {navItems.map((item) => {
+          {filteredNavItems.map((item) => {
             const active = router.pathname === item.href;
             return (
               <Link
@@ -42,8 +83,18 @@ export default function Layout({ children }) {
         </nav>
 
         <div className="sidebar-footer">
-          <div className="sidebar-footer-title">Central Marketing Lead</div>
-          <div className="sidebar-footer-name">Shehroz Malik</div>
+          <div className="sidebar-footer-title">{displayRole}</div>
+          <div className="sidebar-footer-name">{displayName}</div>
+
+          <button
+            className="sidebar-logout"
+            onClick={async () => {
+              await supabase.auth.signOut();
+              router.push("/login");
+            }}
+          >
+            Logout
+          </button>
         </div>
       </aside>
 
