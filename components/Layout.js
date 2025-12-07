@@ -10,48 +10,52 @@ const navItems = [
   { href: "/my-day", label: "My Day" },
   { href: "/team", label: "Team" },
   { href: "/team-updates", label: "Team Updates" },
-  { href: "/analytics", label: "Analytics" },
+  { href: "/analytics", label: "Analytics" }, // NEW
 ];
 
 export default function Layout({ children }) {
   const router = useRouter();
-  const { user, profile } = useAuth();
+  const { user, profile, loading } = useAuth();
 
-  const role = profile?.role || null;
+  if (loading) {
+    return <div className="loading-screen">Loading...</div>;
+  }
 
-  // 👉 role ke hisaab se nav items filter
-  let visibleNavItems = navItems;
-
-  if (role === "core_team") {
-    // core team ko basic working views
-    visibleNavItems = navItems.filter((item) =>
-      ["/", "/my-day", "/team-updates"].includes(item.href)
+  if (!user) {
+    return (
+      <div className="loading-screen">
+        <p>You are not signed in.</p>
+        <button
+          onClick={() => router.push("/login")}
+          className="btn-primary"
+        >
+          Go to login
+        </button>
+      </div>
     );
-  } else if (role === "boss" || role === "super_admin") {
-    // boss + super admin = full access
-    visibleNavItems = navItems;
+  }
+
+  let filteredNavItems = navItems;
+
+  if (profile?.role === "core_team") {
+    filteredNavItems = navItems.filter((item) =>
+      ["/my-day", "/team-updates"].includes(item.href)
+    );
+  } else if (profile?.role === "boss" || profile?.role === "super_admin") {
+    filteredNavItems = navItems;
   } else {
-    // agar role na mila ho to sirf dashboard
-    visibleNavItems = navItems.filter((item) => item.href === "/");
+    filteredNavItems = [];
   }
 
-  const displayName = profile?.full_name || user?.email || "User";
-
-  let displayRole = "";
-  if (role === "super_admin") {
-    displayRole = "Central Marketing – Super Admin";
-  } else if (role === "boss") {
-    displayRole = "Head of Central Marketing";
-  } else if (role === "core_team") {
-    displayRole = "Central Marketing – Core Team";
-  }
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.replace("/login");
-  };
-
-  const isActive = (path) => router.pathname === path;
+  const displayName = profile?.full_name || "User";
+  const displayRole =
+    profile?.role === "boss"
+      ? "Head of Central Marketing"
+      : profile?.role === "super_admin"
+      ? "Central Marketing – Super Admin"
+      : profile?.role === "core_team"
+      ? "Central Marketing – Core Team"
+      : "";
 
   return (
     <div className="app-shell">
@@ -59,22 +63,23 @@ export default function Layout({ children }) {
       <aside className="sidebar">
         <div className="sidebar-header">
           <div className="logo-circle">CM</div>
-          <div>
-            <div className="sidebar-title">Central Marketing</div>
-            <div className="sidebar-subtitle">Operations Dashboard</div>
-          </div>
+          <div className="sidebar-title">Central Marketing</div>
+          <div className="sidebar-subtitle">Operations Dashboard</div>
         </div>
 
         <nav className="nav">
-          {visibleNavItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`nav-item ${isActive(item.href) ? "nav-item-active" : ""}`}
-            >
-              {item.label}
-            </Link>
-          ))}
+          {filteredNavItems.map((item) => {
+            const active = router.pathname === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`nav-item ${active ? "nav-item-active" : ""}`}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
         </nav>
 
         <div className="sidebar-footer">
@@ -82,16 +87,18 @@ export default function Layout({ children }) {
           <div className="sidebar-footer-name">{displayName}</div>
 
           <button
-            type="button"
             className="sidebar-logout"
-            onClick={handleLogout}
+            onClick={async () => {
+              await supabase.auth.signOut();
+              router.push("/login");
+            }}
           >
             Logout
           </button>
         </div>
       </aside>
 
-      {/* Main content */}
+      {/* Main area */}
       <div className="main">
         <header className="topbar">
           <div>
