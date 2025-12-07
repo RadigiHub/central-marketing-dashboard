@@ -19,19 +19,27 @@ export default function Layout({ children }) {
 
   const role = profile?.role || null;
 
-  // 👉 role ke hisaab se nav items filter
-  let visibleNavItems = navItems;
+  // 👉 role ke hisaab se sidebar items
+  let visibleNavItems;
 
-  if (role === "core_team") {
-    // core team ko basic working views
+  if (role === "super_admin") {
+    // super admin: full access, My Day bhi
+    visibleNavItems = navItems;
+  } else if (role === "boss") {
+    // boss: sab dikhega, sirf My Day HIDE
+    visibleNavItems = navItems.filter((item) => item.href !== "/my-day");
+  } else if (role === "manager") {
+    // manager: dashboard + brands + team + team updates
+    visibleNavItems = navItems.filter((item) =>
+      ["/", "/brands", "/team", "/team-updates"].includes(item.href)
+    );
+  } else if (role === "core_team") {
+    // core team: dashboard + My Day + team updates
     visibleNavItems = navItems.filter((item) =>
       ["/", "/my-day", "/team-updates"].includes(item.href)
     );
-  } else if (role === "boss" || role === "super_admin") {
-    // boss + super admin = full access
-    visibleNavItems = navItems;
   } else {
-    // agar role na mila ho to sirf dashboard
+    // unknown role: sirf dashboard
     visibleNavItems = navItems.filter((item) => item.href === "/");
   }
 
@@ -42,6 +50,8 @@ export default function Layout({ children }) {
     displayRole = "Central Marketing – Super Admin";
   } else if (role === "boss") {
     displayRole = "Head of Central Marketing";
+  } else if (role === "manager") {
+    displayRole = "Central Marketing – Manager";
   } else if (role === "core_team") {
     displayRole = "Central Marketing – Core Team";
   }
@@ -70,7 +80,9 @@ export default function Layout({ children }) {
             <Link
               key={item.href}
               href={item.href}
-              className={`nav-item ${isActive(item.href) ? "nav-item-active" : ""}`}
+              className={`nav-item ${
+                isActive(item.href) ? "nav-item-active" : ""
+              }`}
             >
               {item.label}
             </Link>
