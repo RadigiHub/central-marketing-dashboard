@@ -100,6 +100,8 @@ export default function TasksPage() {
           .from("Brands")
           .select("id, name")
           .order("name", { ascending: true }),
+
+        // dropdown me sirf core_team members
         supabase
           .from("profiles")
           .select("id, full_name, role, email")
@@ -128,7 +130,7 @@ export default function TasksPage() {
   }, []);
 
   // -----------------------------
-  // Supabase se tasks laao
+  // Supabase se tasks laao (simple select)
   // -----------------------------
   async function fetchTasks() {
     const { data, error } = await supabase
@@ -167,27 +169,6 @@ export default function TasksPage() {
   }
 
   // -----------------------------
-  // Helpers
-  // -----------------------------
-  function getBrandName(brand_id) {
-    const b = brands.find((br) => br.id === brand_id);
-    return b?.name || "—";
-  }
-
-  function getAssigneeName(user_id) {
-    const m = members.find((mb) => mb.id === user_id);
-    return m ? `${m.full_name} (${m.role})` : "—";
-  }
-
-  function priorityClass(priority) {
-    return `badge-priority badge-priority-${priority}`;
-  }
-
-  function statusClass(status) {
-    return `status-chip status-chip-${status}`;
-  }
-
-  // -----------------------------
   // Modal open/close
   // -----------------------------
   function openModal() {
@@ -220,7 +201,7 @@ export default function TasksPage() {
   }
 
   // -----------------------------
-  // Task save + email notify
+  // Task save karna + email notify
   // -----------------------------
   async function handleSubmit(e) {
     e.preventDefault();
@@ -230,7 +211,6 @@ export default function TasksPage() {
     }
 
     setSaving(true);
-
     try {
       const payload = {
         brand_id: form.brand_id,
@@ -244,7 +224,11 @@ export default function TasksPage() {
         created_by: profile?.id || null,
       };
 
-      const { error } = await supabase.from("tasks").insert([payload]);
+      const { data, error } = await supabase
+        .from("tasks")
+        .insert([payload])
+        .select()
+        .single();
 
       if (error) {
         console.error("Error inserting task", error);
@@ -252,30 +236,42 @@ export default function TasksPage() {
         return;
       }
 
-      // --- Email notification ---
-      const assignee = members.find((m) => m.id === payload.assigned_to);
+      // -------------------------
+      // NEW: API call to send email
+      // -------------------------
+      try {
+        const assignee = members.find(
+          (m) => m.id === payload.assigned_to
+        );
 
-      if (!assignee || !assignee.email) {
-        console.warn("No email found for assignee id:", payload.assigned_to);
-      } else {
-        try {
-          await fetch("/api/notify-task", {
+        if (!assignee || !assignee.email) {
+          console.warn(
+            "No email found for assignee id:",
+            payload.assigned_to
+          );
+        } else {
+          const brand = brands.find((b) => b.id === payload.brand_id);
+
+          await fetch("/api/notify/task-assigned", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+            },
             body: JSON.stringify({
               email: assignee.email,
-              brandName: getBrandName(payload.brand_id),
+              assigneeName: assignee.full_name,
+              brandName: brand?.name || "Unknown brand",
               title: payload.title,
               type: payload.type,
-              assigneeName: assignee.full_name,
               deadline: payload.deadline,
-              description: payload.description,
+              description: payload.description || "",
             }),
           });
-        } catch (notifyErr) {
-          console.error("Error calling /api/notify-task", notifyErr);
         }
+      } catch (notifyErr) {
+        console.error("Error calling notify-task API", notifyErr);
       }
+      // --------- end email part ---------
 
       await fetchTasks();
       closeModal();
@@ -305,6 +301,25 @@ export default function TasksPage() {
     });
   }, [tasks, filters]);
 
+  function priorityClass(priority) {
+    return `badge-priority badge-priority-${priority}`;
+  }
+
+  function statusClass(status) {
+    return `status-chip status-chip-${status}`;
+  }
+
+  // Helpers to show names instead of IDs
+  function getBrandName(brand_id) {
+    const b = brands.find((br) => br.id === brand_id);
+    return b?.name || "—";
+  }
+
+  function getAssigneeName(user_id) {
+    const m = members.find((mb) => mb.id === user_id);
+    return m ? `${m.full_name} (${m.role})` : "—";
+  }
+
   // -----------------------------
   // UI
   // -----------------------------
@@ -316,8 +331,8 @@ export default function TasksPage() {
           <div>
             <h1 className="page-title">Tasks & Workloads</h1>
             <p className="page-subtitle">
-              Har brand ke liye daily tasks – SEO, Content, Web, Ads, Creative –
-              sab ek jagah track.
+              Har brand ke liye daily tasks – SEO, Content, Web, Ads,
+              Creative – sab ek jagah track.
             </p>
           </div>
 
@@ -403,7 +418,9 @@ export default function TasksPage() {
         ) : filteredTasks.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state-dot" />
-            <span>No tasks yet – start assigning work from the top-right.</span>
+            <span>
+              No tasks yet – start assigning work from the top-right.
+            </span>
           </div>
         ) : (
           <div className="table-shell">
