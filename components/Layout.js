@@ -10,9 +10,8 @@ const navItems = [
   { href: "/my-day", label: "My Day" },
   { href: "/team", label: "Team" },
   { href: "/team-updates", label: "Team Updates" },
+  { href: "/tasks", label: "Tasks" },      // ⭐ NEW
   { href: "/analytics", label: "Analytics" },
-  { href: "/brand-analytics", label: "Brand Analytics" },
-  { href: "/add-campaign", label: "Add Data" }, // ✅ naya page
 ];
 
 export default function Layout({ children }) {
@@ -25,24 +24,20 @@ export default function Layout({ children }) {
   let visibleNavItems;
 
   if (role === "super_admin") {
-    // super admin: full access, Add Data bhi
+    // super admin: full access, sab dikhaye
     visibleNavItems = navItems;
   } else if (role === "boss") {
-    // boss: sab dikhega, sirf My Day + Add Data HIDE
-    visibleNavItems = navItems.filter(
-      (item) => item.href !== "/my-day" && item.href !== "/add-campaign"
-    );
+    // boss: sab dikhega, sirf My Day HIDE
+    visibleNavItems = navItems.filter((item) => item.href !== "/my-day");
   } else if (role === "manager") {
-    // manager: dashboard + brands + team + team updates + brand analytics
+    // manager: dashboard + brands + team + team updates + tasks
     visibleNavItems = navItems.filter((item) =>
-      ["/", "/brands", "/team", "/team-updates", "/brand-analytics"].includes(
-        item.href
-      )
+      ["/", "/brands", "/team", "/team-updates", "/tasks"].includes(item.href)
     );
   } else if (role === "core_team") {
-    // core team: dashboard + My Day + team updates
+    // core team: dashboard + My Day + team updates + tasks (sirf apne tasks dikhayenge)
     visibleNavItems = navItems.filter((item) =>
-      ["/", "/my-day", "/team-updates"].includes(item.href)
+      ["/", "/my-day", "/team-updates", "/tasks"].includes(item.href)
     );
   } else {
     // unknown role: sirf dashboard
