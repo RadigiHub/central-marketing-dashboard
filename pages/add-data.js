@@ -1,4 +1,4 @@
-// pages/add-campaign.js
+// pages/add-data.js
 import { useEffect, useState } from "react";
 import supabase from "../lib/supabase";
 
@@ -10,7 +10,7 @@ function todayISO() {
   return d.toISOString().slice(0, 10);
 }
 
-export default function AddCampaignPage() {
+export default function AddDataPage() {
   const [brands, setBrands] = useState([]);
 
   const [brandId, setBrandId] = useState("");
@@ -31,7 +31,7 @@ export default function AddCampaignPage() {
   useEffect(() => {
     async function loadBrands() {
       const { data, error } = await supabase
-        .from("Brands")
+        .from("Brands") // tumhari table capital B wali hai
         .select("id, name")
         .order("name", { ascending: true });
 
@@ -135,7 +135,7 @@ export default function AddCampaignPage() {
                 </select>
               </div>
 
-              {/* Date (single) */}
+              {/* Date */}
               <div className="form-field">
                 <label>Date</label>
                 <input
