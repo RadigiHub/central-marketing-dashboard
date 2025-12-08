@@ -2,7 +2,6 @@
 import { useEffect, useMemo, useState } from "react";
 import supabase from "../lib/supabase";
 import { useAuth } from "../lib/auth";
-import { sendTaskAssignedEmail } from "../lib/notifications/email";
 
 const TASK_TYPES = [
   "Meta Ads",
