@@ -10,8 +10,11 @@ const navItems = [
   { href: "/my-day", label: "My Day" },
   { href: "/team", label: "Team" },
   { href: "/team-updates", label: "Team Updates" },
-  { href: "/tasks", label: "Tasks" },      // ⭐ NEW
   { href: "/analytics", label: "Analytics" },
+
+  // 👇 yeh do line wapas add ki hain
+  { href: "/brand-analytics", label: "Brand Analytics" },
+  { href: "/add-data", label: "Add Data" },
 ];
 
 export default function Layout({ children }) {
@@ -24,20 +27,20 @@ export default function Layout({ children }) {
   let visibleNavItems;
 
   if (role === "super_admin") {
-    // super admin: full access, sab dikhaye
+    // super admin: full access, sab dikhega
     visibleNavItems = navItems;
   } else if (role === "boss") {
     // boss: sab dikhega, sirf My Day HIDE
     visibleNavItems = navItems.filter((item) => item.href !== "/my-day");
   } else if (role === "manager") {
-    // manager: dashboard + brands + team + team updates + tasks
+    // manager: dashboard + brands + team + team updates
     visibleNavItems = navItems.filter((item) =>
-      ["/", "/brands", "/team", "/team-updates", "/tasks"].includes(item.href)
+      ["/", "/brands", "/team", "/team-updates"].includes(item.href)
     );
   } else if (role === "core_team") {
-    // core team: dashboard + My Day + team updates + tasks (sirf apne tasks dikhayenge)
+    // core team: dashboard + My Day + team updates
     visibleNavItems = navItems.filter((item) =>
-      ["/", "/my-day", "/team-updates", "/tasks"].includes(item.href)
+      ["/", "/my-day", "/team-updates"].includes(item.href)
     );
   } else {
     // unknown role: sirf dashboard
