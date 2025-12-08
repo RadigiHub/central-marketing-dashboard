@@ -10,6 +10,8 @@ const navItems = [
   { href: "/my-day", label: "My Day" },
   { href: "/team", label: "Team" },
   { href: "/team-updates", label: "Team Updates" },
+  // 👉 yeh nayi line add karo
+  { href: "/tasks", label: "Tasks" },
   { href: "/analytics", label: "Analytics" },
 
   // 👇 yeh do line wapas add ki hain
