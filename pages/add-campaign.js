@@ -10,34 +10,12 @@ function todayISO() {
   return d.toISOString().slice(0, 10);
 }
 
-// date range ke beech ke saare din banaane ke helper
-function buildDateRange(start, end) {
-  const startDate = new Date(start);
-  const endDate = new Date(end);
-  startDate.setHours(0, 0, 0, 0);
-  endDate.setHours(0, 0, 0, 0);
-
-  const dates = [];
-  let cur = startDate;
-
-  while (cur <= endDate) {
-    dates.push(cur.toISOString().slice(0, 10));
-    cur = new Date(cur.getTime() + 24 * 60 * 60 * 1000);
-  }
-
-  return dates;
-}
-
 export default function AddCampaignPage() {
   const [brands, setBrands] = useState([]);
 
   const [brandId, setBrandId] = useState("");
   const [platform, setPlatform] = useState(PLATFORMS[0]);
-  const [mode, setMode] = useState("single"); // "single" | "range"
-
   const [date, setDate] = useState(todayISO());
-  const [startDate, setStartDate] = useState(todayISO());
-  const [endDate, setEndDate] = useState(todayISO());
 
   const [impressions, setImpressions] = useState("");
   const [spend, setSpend] = useState("");
@@ -49,7 +27,7 @@ export default function AddCampaignPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // Brands load karna
+  // Brands load
   useEffect(() => {
     async function loadBrands() {
       const { data, error } = await supabase
@@ -82,6 +60,11 @@ export default function AddCampaignPage() {
       return;
     }
 
+    if (!date) {
+      setError("Date select karo.");
+      return;
+    }
+
     if (!spend && !impressions && !clicks && !leads && !revenue) {
       setError("Kuch na kuch metric fill karo (spend/leads etc.).");
       return;
@@ -90,9 +73,10 @@ export default function AddCampaignPage() {
     try {
       setSaving(true);
 
-      const baseRow = {
+      const row = {
         brand_id: brandId,
         platform,
+        date,
         impressions: impressions ? Number(impressions) : 0,
         spend: spend ? Number(spend) : 0,
         clicks: clicks ? Number(clicks) : 0,
@@ -100,102 +84,29 @@ export default function AddCampaignPage() {
         revenue: revenue ? Number(revenue) : null, // optional
       };
 
-      let rowsToInsert = [];
-
-      if (mode === "single") {
-        if (!date) {
-          setError("Date select karo.");
-          setSaving(false);
-          return;
-        }
-
-        rowsToInsert = [{ ...baseRow, date }];
-      } else {
-        // range mode
-        if (!startDate || !endDate) {
-          setError("Start aur end date dono select karo.");
-          setSaving(false);
-          return;
-        }
-
-        if (startDate > endDate) {
-          setError("Start date end date se pehle honi chahiye.");
-          setSaving(false);
-          return;
-        }
-
-        const dates = buildDateRange(startDate, endDate);
-
-        rowsToInsert = dates.map((d) => ({
-          ...baseRow,
-          date: d,
-        }));
-      }
-
       const { error: insertError } = await supabase
         .from("campaign_stats")
-        .insert(rowsToInsert);
+        .insert(row);
 
       if (insertError) {
         console.error(insertError);
         setError("Data save kerte waqt issue aa gaya.");
-        setSaving(false);
         return;
       }
 
-      // form reset
+      // reset
       setImpressions("");
       setSpend("");
       setClicks("");
       setLeads("");
       setRevenue("");
-      if (mode === "single") {
-        setDate(todayISO());
-      } else {
-        setStartDate(todayISO());
-        setEndDate(todayISO());
-      }
+      setDate(todayISO());
 
-      setSuccess(
-        mode === "single"
-          ? "1 din ka data save ho gaya ✅"
-          : `${rowsToInsert.length} din ka data save ho gaya ✅`
-      );
+      setSuccess("Entry save ho gayi ✅");
     } finally {
       setSaving(false);
     }
   }
-
-  const dateSection =
-    mode === "single" ? (
-      <div className="form-field">
-        <label>Date</label>
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-        />
-      </div>
-    ) : (
-      <>
-        <div className="form-field">
-          <label>Start date</label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-          />
-        </div>
-        <div className="form-field">
-          <label>End date</label>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-          />
-        </div>
-      </>
-    );
 
   return (
     <div className="page">
@@ -203,38 +114,9 @@ export default function AddCampaignPage() {
         <div className="section-card">
           <h2 className="page-title">Add Campaign Data</h2>
           <p className="page-subtitle">
-            Har din ka Meta / Google / etc yahan add karo. Ye data Brand
-            Analytics aur top analytics mein use hoga.
+            Har din ya month ka Meta / Google / etc yahan add karo.
+            Ye data Brand Analytics aur top analytics mein use hoga.
           </p>
-
-          {/* Mode toggle */}
-          <div
-            style={{
-              display: "flex",
-              gap: "0.75rem",
-              margin: "16px 0 8px",
-              fontSize: "0.8rem",
-            }}
-          >
-            <button
-              type="button"
-              className={`pill-filter ${
-                mode === "single" ? "pill-filter--active" : ""
-              }`}
-              onClick={() => setMode("single")}
-            >
-              <span>Single day</span>
-            </button>
-            <button
-              type="button"
-              className={`pill-filter ${
-                mode === "range" ? "pill-filter--active" : ""
-              }`}
-              onClick={() => setMode("range")}
-            >
-              <span>Date range (multi-day)</span>
-            </button>
-          </div>
 
           <form onSubmit={handleSubmit}>
             <div className="form-grid" style={{ marginTop: "12px" }}>
@@ -253,8 +135,15 @@ export default function AddCampaignPage() {
                 </select>
               </div>
 
-              {/* Date or date range */}
-              {dateSection}
+              {/* Date (single) */}
+              <div className="form-field">
+                <label>Date</label>
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                />
+              </div>
 
               {/* Platform */}
               <div className="form-field">
@@ -364,11 +253,7 @@ export default function AddCampaignPage() {
                 disabled={saving}
                 style={{ width: "100%" }}
               >
-                {saving
-                  ? "Saving…"
-                  : mode === "single"
-                  ? "Save entry"
-                  : "Save all days in range"}
+                {saving ? "Saving…" : "Save entry"}
               </button>
             </div>
           </form>
