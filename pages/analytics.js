@@ -1,188 +1,301 @@
 // pages/analytics.js
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import supabase from "../lib/supabase";
 
-export default function AnalyticsPage() {
-  const [rows, setRows] = useState([]);
+const PRIORITY_LABEL = {
+  p1: "P1 – Urgent",
+  p2: "P2 – High",
+  p3: "P3 – Normal",
+};
+
+const STATUS_LABEL = {
+  not_started: "Not started",
+  in_progress: "In progress",
+  blocked: "Blocked",
+  done: "Done",
+};
+
+export default function TaskAnalyticsPage() {
+  const [brands, setBrands] = useState([]);
+  const [profiles, setProfiles] = useState([]);
+  const [tasks, setTasks] = useState([]);
+
+  const [selectedBrandId, setSelectedBrandId] = useState("");
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [errorMessage, setErrorMessage] = useState("");
 
+  // ---- Load data ------------------------------------------------------
   useEffect(() => {
-    async function load() {
+    async function loadAll() {
       setLoading(true);
-      setError(null);
+      setErrorMessage("");
 
-      // brand_daily_stats view se latest data
-      const { data, error } = await supabase
-        .from("brand_daily_stats")
-        .select("*")
-        .order("date", { ascending: false })
-        .limit(200); // zyada rows hon to yahan number adjust kar lena
+      const [brandsRes, profilesRes, tasksRes] = await Promise.all([
+        supabase.from("Brands").select("id, name").order("name", {
+          ascending: true,
+        }),
+        supabase.from("profiles").select("id, full_name, role"),
+        supabase
+          .from("tasks")
+          .select("*")
+          .order("due_date", { ascending: true })
+          .order("created_at", { ascending: false }),
+      ]);
 
-      if (error) {
-        console.error("Error loading analytics", error);
-        setError("Analytics load karte huay error aa gaya.");
+      if (brandsRes.error || profilesRes.error || tasksRes.error) {
+        console.error("Task analytics load error", {
+          brandsError: brandsRes.error,
+          profilesError: profilesRes.error,
+          tasksError: tasksRes.error,
+        });
+        setErrorMessage("Error loading task analytics. Please refresh.");
       } else {
-        setRows(data || []);
+        setBrands(brandsRes.data || []);
+        setProfiles(profilesRes.data || []);
+        setTasks(tasksRes.data || []);
+
+        if (!selectedBrandId && brandsRes.data && brandsRes.data.length > 0) {
+          setSelectedBrandId(String(brandsRes.data[0].id));
+        }
       }
 
       setLoading(false);
     }
 
-    load();
+    loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (loading) {
-    return (
-      <div className="page">
-        <div className="layout-main">
-          <div className="card">
-            <h2>Analytics</h2>
-            <p>Loading analytics…</p>
-          </div>
-        </div>
-      </div>
+  // ---- Derived data ---------------------------------------------------
+
+  const profileMap = useMemo(() => {
+    const m = new Map();
+    for (const p of profiles) {
+      m.set(p.id, p);
+    }
+    return m;
+  }, [profiles]);
+
+  const filteredTasks = useMemo(() => {
+    if (!selectedBrandId) return tasks;
+    return tasks.filter(
+      (t) => String(t.brand_id) === String(selectedBrandId)
     );
+  }, [tasks, selectedBrandId]);
+
+  const today = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+
+  const totalTasks = filteredTasks.length;
+  const doneTasks = filteredTasks.filter((t) => t.status === "done").length;
+  const inProgressTasks = filteredTasks.filter(
+    (t) => t.status === "in_progress"
+  ).length;
+  const blockedTasks = filteredTasks.filter(
+    (t) => t.status === "blocked"
+  ).length;
+
+  const overdueTasks = filteredTasks.filter((t) => {
+    if (!t.due_date) return false;
+    const d = new Date(t.due_date);
+    d.setHours(0, 0, 0, 0);
+    return d < today && t.status !== "done";
+  }).length;
+
+  const completionRate =
+    totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
+
+  function formatDate(value) {
+    if (!value) return "No date";
+    try {
+      return new Date(value).toLocaleDateString();
+    } catch {
+      return value;
+    }
   }
 
-  if (error) {
-    return (
-      <div className="page">
-        <div className="layout-main">
-          <div className="card">
-            <h2>Analytics</h2>
-            <p className="text-error">{error}</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // 🔢 Top-level summary (totals)
-  const totalSpend = rows.reduce((sum, r) => sum + (r.spend || 0), 0);
-  const totalLeads = rows.reduce((sum, r) => sum + (r.leads || 0), 0);
-  const totalImpressions = rows.reduce(
-    (sum, r) => sum + (r.impressions || 0),
-    0
-  );
-  const totalClicks = rows.reduce((sum, r) => sum + (r.clicks || 0), 0);
-  const totalRevenue = rows.reduce((sum, r) => sum + (r.revenue || 0), 0);
-
-  const avgCpl =
-    totalLeads > 0 ? Number(totalSpend / totalLeads).toFixed(2) : "-";
-  const avgCtr =
-    totalImpressions > 0
-      ? Number((totalClicks / totalImpressions) * 100).toFixed(2)
-      : "-";
+  // ---- Render ---------------------------------------------------------
 
   return (
-    <div className="page">
-      <div className="layout-main">
-        <h1 className="page-title">Analytics</h1>
-        <p className="page-subtitle">
-          High level view of spend, leads, CPL & CTR across all brands.
-        </p>
-
-        {/* Summary cards */}
-        <div className="cards-grid">
-          <div className="card">
-            <h3>Total Spend</h3>
-            <p className="metric">
-              £{Number(totalSpend).toLocaleString(undefined, {
-                maximumFractionDigits: 0,
-              })}
-            </p>
-          </div>
-
-          <div className="card">
-            <h3>Total Leads</h3>
-            <p className="metric">
-              {Number(totalLeads).toLocaleString(undefined, {
-                maximumFractionDigits: 0,
-              })}
-            </p>
-          </div>
-
-          <div className="card">
-            <h3>Average CPL</h3>
-            <p className="metric">
-              {avgCpl === "-" ? "-" : `£${avgCpl}`}
-            </p>
-          </div>
-
-          <div className="card">
-            <h3>Average CTR</h3>
-            <p className="metric">
-              {avgCtr === "-" ? "-" : `${avgCtr}%`}
+    <div className="page-shell">
+      {/* Header */}
+      <header className="page-header">
+        <div className="page-header-main">
+          <div>
+            <h1 className="page-title">Analytics – Team Tasks</h1>
+            <p className="page-subtitle">
+              Yahan se dekh sakte ho har brand ka overall task workload:
+              kitne tasks banay, kitne complete, kitne block / overdue.
             </p>
           </div>
         </div>
 
-        {/* Detailed table */}
-        <div className="card">
-          <h2>Brand daily performance (latest rows)</h2>
-          <div className="table-wrapper">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Brand</th>
-                  <th>Platform</th>
-                  <th className="num">Spend</th>
-                  <th className="num">Impressions</th>
-                  <th className="num">Clicks</th>
-                  <th className="num">Leads</th>
-                  <th className="num">Revenue</th>
-                  <th className="num">CPL</th>
-                  <th className="num">CTR</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr key={`${row.brand_id}-${row.platform}-${row.date}`}>
-                    <td>{row.date}</td>
-                    <td>{row.brand_name}</td>
-                    <td>{row.platform}</td>
-                    <td className="num">
-                      £{Number(row.spend || 0).toLocaleString(undefined, {
-                        maximumFractionDigits: 0,
-                      })}
-                    </td>
-                    <td className="num">
-                      {Number(row.impressions || 0).toLocaleString()}
-                    </td>
-                    <td className="num">
-                      {Number(row.clicks || 0).toLocaleString()}
-                    </td>
-                    <td className="num">
-                      {Number(row.leads || 0).toLocaleString()}
-                    </td>
-                    <td className="num">
-                      £{Number(row.revenue || 0).toLocaleString(undefined, {
-                        maximumFractionDigits: 0,
-                      })}
-                    </td>
-                    <td className="num">
-                      {row.cpl == null ? "-" : `£${row.cpl}`}
-                    </td>
-                    <td className="num">
-                      {row.ctr == null ? "-" : `${row.ctr}%`}
-                    </td>
-                  </tr>
+        <div className="page-header-meta">
+          <span>
+            {brands.length} brands • {totalTasks} tasks (filtered)
+          </span>
+        </div>
+      </header>
+
+      {/* Brand filter */}
+      <section className="section-card" style={{ marginTop: 0 }}>
+        <div className="toolbar">
+          <div className="toolbar-group">
+            <label style={{ fontSize: "0.8rem" }}>
+              Brand
+              <select
+                className="input"
+                style={{ marginLeft: "0.5rem" }}
+                value={selectedBrandId}
+                onChange={(e) => setSelectedBrandId(e.target.value)}
+              >
+                <option value="">All brands</option>
+                {brands.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
                 ))}
-
-                {rows.length === 0 && (
-                  <tr>
-                    <td colSpan={10} style={{ textAlign: "center" }}>
-                      No analytics data found yet.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+              </select>
+            </label>
           </div>
         </div>
-      </div>
+      </section>
+
+      {/* Error / loading */}
+      {errorMessage && (
+        <div className="empty-state" style={{ color: "#fecaca" }}>
+          {errorMessage}
+        </div>
+      )}
+      {loading && !errorMessage && (
+        <div className="loading-state">Loading task analytics…</div>
+      )}
+
+      {/* Metrics */}
+      {!loading && !errorMessage && (
+        <section className="section" style={{ marginTop: 16 }}>
+          <div className="metric-grid">
+            <div className="metric-card">
+              <div className="metric-label">Total Tasks</div>
+              <div className="metric-value">{totalTasks}</div>
+              <div className="metric-context">
+                Is brand filter ke andar jitne bhi tasks hain (all statuses).
+              </div>
+            </div>
+
+            <div className="metric-card">
+              <div className="metric-label">Completed</div>
+              <div className="metric-value">{doneTasks}</div>
+              <div className="metric-context">
+                Completion rate ~{completionRate}%.
+              </div>
+            </div>
+
+            <div className="metric-card">
+              <div className="metric-label">In Progress / Blocked</div>
+              <div className="metric-value">
+                {inProgressTasks} in progress • {blockedTasks} blocked
+              </div>
+              <div className="metric-context">
+                Overdue (date nikal chuki, done nahi): {overdueTasks}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Task table */}
+      {!loading && !errorMessage && (
+        <section className="section-card" style={{ marginTop: 16 }}>
+          <div className="section-label">Task breakdown</div>
+
+          {filteredTasks.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-state-dot" />
+              <span>
+                Is brand / filter ke liye abhi koi task nahi mila.
+              </span>
+            </div>
+          ) : (
+            <div className="table-shell">
+              <div className="table-head-row">
+                <div>Task</div>
+                <div>Owner</div>
+                <div>Meta</div>
+                <div>Status</div>
+              </div>
+
+              <div className="table-body">
+                {filteredTasks.map((task) => {
+                  const brand =
+                    brands.find(
+                      (b) => String(b.id) === String(task.brand_id)
+                    ) || null;
+                  const owner = profileMap.get(task.assigned_to);
+
+                  const priority = PRIORITY_LABEL[task.priority] || "Normal";
+                  const statusLabel =
+                    STATUS_LABEL[task.status] || task.status || "Unknown";
+
+                  return (
+                    <div key={task.id} className="table-row">
+                      {/* Task / title */}
+                      <div className="table-cell-brand">
+                        <span className="table-brand-name">
+                          {task.title || "(Untitled task)"}
+                        </span>
+                        <span className="table-brand-sub">
+                          {brand?.name || "Unknown brand"} •{" "}
+                          {task.type || "Task"}
+                        </span>
+                      </div>
+
+                      {/* Owner */}
+                      <div>
+                        <div className="table-team-lead">
+                          {owner?.full_name || "Unassigned"}
+                        </div>
+                        <div className="table-brand-sub">
+                          Due: {formatDate(task.due_date)}
+                        </div>
+                      </div>
+
+                      {/* Meta */}
+                      <div>
+                        <span
+                          className={`pill ${
+                            task.priority === "p1"
+                              ? "pill-priority-1"
+                              : task.priority === "p2"
+                              ? "pill-priority-2"
+                              : "pill-priority-3"
+                          }`}
+                          style={{ marginRight: 8 }}
+                        >
+                          {priority}
+                        </span>
+                        <span className="table-brand-sub">
+                          Created {formatDate(task.created_at)}
+                        </span>
+                      </div>
+
+                      {/* Status */}
+                      <div className="table-status-cell">
+                        <span className="pill pill-neutral">
+                          {statusLabel}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }
