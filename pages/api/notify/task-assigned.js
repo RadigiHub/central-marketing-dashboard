@@ -1,56 +1,40 @@
-// pages/api/notify/task-assigned.js
-import supabase from "../../../lib/supabase";
-import { sendTaskAssignedEmail } from "../../../lib/notifications/email";
+// pages/api/notify-task.js
+import { sendTaskAssignedEmail } from "../../lib/notifications/email";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).end();
   }
 
-  const { taskId } = req.body;
-
-  if (!taskId) {
-    return res.status(400).json({ error: "taskId is required" });
-  }
-
-  // Task + assignee + brand fetch
-  const { data, error } = await supabase
-    .from("tasks")
-    .select(
-      `
-      id,
+  try {
+    const body = req.body || {};
+    const {
+      email,
+      brandName,
       title,
       type,
-      priority,
+      assigneeName,
       deadline,
       description,
-      brand:Brands ( name ),
-      assignee:profiles ( email, full_name )
-    `
-    )
-    .eq("id", taskId)
-    .single();
+    } = body;
 
-  if (error) {
-    console.error("Task lookup error:", error);
-    return res.status(500).json({ error: "Task lookup failed" });
+    if (!email) {
+      return res.status(400).json({ ok: false, error: "missing-email" });
+    }
+
+    await sendTaskAssignedEmail({
+      to: email,
+      brandName,
+      title,
+      type,
+      assigneeName,
+      deadline,
+      description,
+    });
+
+    return res.status(200).json({ ok: true });
+  } catch (err) {
+    console.error("notify-task error", err);
+    return res.status(500).json({ ok: false });
   }
-
-  const to = data.assignee?.email;
-  if (!to) {
-    console.warn("No assignee email, skipping send");
-    return res.status(200).json({ ok: true, skipped: "no email on profile" });
-  }
-
-  await sendTaskAssignedEmail({
-    to,
-    brandName: data.brand?.name || "Central Marketing",
-    taskTitle: data.title,
-    taskType: data.type,
-    priority: data.priority,
-    deadline: data.deadline,
-    description: data.description || "",
-  });
-
-  return res.status(200).json({ ok: true });
 }
