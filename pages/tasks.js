@@ -203,7 +203,7 @@ export default function TasksPage() {
   // -----------------------------
   // Task save karna
   // -----------------------------
-  async function handleSubmit(e) {
+    async function handleSubmit(e) {
     e.preventDefault();
     if (!form.brand_id || !form.title.trim() || !form.assigned_to) {
       alert("Brand, task title aur assignee required hain.");
@@ -224,6 +224,7 @@ export default function TasksPage() {
         created_by: profile?.id || null,
       };
 
+      // 1) Task Supabase me save karo
       const { error } = await supabase.from("tasks").insert([payload]);
 
       if (error) {
@@ -232,6 +233,33 @@ export default function TasksPage() {
         return;
       }
 
+      // 2) Assignee + brand ki details nikaalo (email ke liye)
+      const brand = brands.find((b) => b.id === form.brand_id);
+      const assignee = members.find((m) => m.id === form.assigned_to);
+
+      // 3) Agar assignee ka email mila to Resend API ko hit karo
+      if (assignee?.email) {
+        try {
+          await fetch("/api/notify/task-assigned", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: assignee.email,
+              brandName: brand?.name || "",
+              title: payload.title,
+              type: payload.type,
+              assigneeName: assignee.full_name,
+              deadline: payload.deadline,
+              description: payload.description,
+            }),
+          });
+        } catch (notifyErr) {
+          // Email fail ho jaye to bhi UI ko block nahi karna
+          console.error("Error sending task notification email", notifyErr);
+        }
+      }
+
+      // 4) UI refresh
       await fetchTasks();
       closeModal();
     } finally {
