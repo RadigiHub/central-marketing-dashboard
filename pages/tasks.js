@@ -104,7 +104,7 @@ export default function TasksPage() {
         // dropdown me sirf core_team members
         supabase
           .from("profiles")
-          .select("id, full_name, role, email")
+          .select("id, full_name, role, email, work_email, contact_email")
           .eq("role", "core_team")
           .order("full_name", { ascending: true }),
       ]);
@@ -130,7 +130,7 @@ export default function TasksPage() {
   }, []);
 
   // -----------------------------
-  // Supabase se tasks laao (simple select)
+  // Supabase se tasks laao
   // -----------------------------
   async function fetchTasks() {
     const { data, error } = await supabase
@@ -205,12 +205,14 @@ export default function TasksPage() {
   // -----------------------------
   async function handleSubmit(e) {
     e.preventDefault();
+
     if (!form.brand_id || !form.title.trim() || !form.assigned_to) {
       alert("Brand, task title aur assignee required hain.");
       return;
     }
 
     setSaving(true);
+
     try {
       const payload = {
         brand_id: form.brand_id,
@@ -224,6 +226,7 @@ export default function TasksPage() {
         created_by: profile?.id || null,
       };
 
+      // 1) Task DB me save karo
       const { error } = await supabase.from("tasks").insert([payload]);
 
       if (error) {
@@ -232,41 +235,42 @@ export default function TasksPage() {
         return;
       }
 
-      // -------------------------
-      // NEW: Email notification
-      // -------------------------
-      try {
-        const brand = brands.find((b) => b.id === payload.brand_id);
-        const assignee = members.find((m) => m.id === payload.assigned_to);
+      // 2) Assignee + brand ka data nikaalo
+      const assignee = members.find((m) => m.id === payload.assigned_to);
+      const brand = brands.find((b) => b.id === payload.brand_id);
 
-        const assigneeEmail = assignee?.email;
-        const assigneeName = assignee?.full_name || "Team member";
+      // Different column names se email try karo
+      const assigneeEmail =
+        assignee?.email ||
+        assignee?.work_email ||
+        assignee?.contact_email ||
+        null;
 
-        if (assigneeEmail) {
+      if (!assigneeEmail) {
+        console.warn(
+          "No email found for assignee id:",
+          payload.assigned_to,
+          assignee
+        );
+      } else {
+        // 3) Email notification API ko call karo
+        try {
           await fetch("/api/notify/task-assigned", {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               email: assigneeEmail,
               brandName: brand?.name || "Unknown brand",
               title: payload.title,
               type: payload.type,
-              assigneeName,
+              assigneeName: assignee?.full_name || "",
               deadline: payload.deadline,
               description: payload.description,
             }),
           });
-        } else {
-          console.warn(
-            "No email found for assignee id: ",
-            payload.assigned_to
-          );
+        } catch (notifyErr) {
+          console.error("Task saved but email send failed", notifyErr);
         }
-      } catch (notifyErr) {
-        // Email fail ho jaye to bhi UI ko block nahi karna
-        console.error("Error calling /api/notify/task-assigned", notifyErr);
       }
 
       await fetchTasks();
@@ -284,7 +288,10 @@ export default function TasksPage() {
       if (filters.brandId !== "all" && t.brand_id !== filters.brandId) {
         return false;
       }
-      if (filters.assigneeId !== "all" && t.assigned_to !== filters.assigneeId) {
+      if (
+        filters.assigneeId !== "all" &&
+        t.assigned_to !== filters.assigneeId
+      ) {
         return false;
       }
       if (filters.status !== "all" && t.status !== filters.status) {
