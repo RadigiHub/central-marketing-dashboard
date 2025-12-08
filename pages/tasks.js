@@ -64,7 +64,7 @@ export default function TasksPage() {
     role === "super_admin" || role === "boss" || role === "manager";
 
   const [brands, setBrands] = useState([]);
-  const [members, setMembers] = useState([]); // sirf core_team yahan ayegi
+  const [members, setMembers] = useState([]);
 
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -88,51 +88,43 @@ export default function TasksPage() {
     description: "",
   });
 
-  // ---------- LOAD BRANDS + MEMBERS + TASKS ----------------------
+  // Load brands, members, tasks
   useEffect(() => {
     async function load() {
-      try {
-        setLoading(true);
+      setLoading(true);
 
-        // 1) brands
-        const { data: brandsData, error: brandsError } = await supabase
+      const [brandsRes, membersRes] = await Promise.all([
+        supabase
           .from("Brands")
           .select("id, name")
-          .order("name", { ascending: true });
-
-        if (brandsError) {
-          console.error("Error loading brands", brandsError);
-        } else {
-          setBrands(brandsData || []);
-        }
-
-        // 2) members – simple select, phir JS me filter = sirf core_team
-        const { data: profilesData, error: profilesError } = await supabase
+          .order("name", { ascending: true }),
+        supabase
           .from("profiles")
           .select("id, full_name, role")
-          .order("full_name", { ascending: true });
+          .in("role", ["core_team", "manager", "super_admin", "boss"])
+          .order("full_name", { ascending: true }),
+      ]);
 
-        if (profilesError) {
-          console.error("Error loading profiles", profilesError);
-        } else {
-          const coreTeamOnly = (profilesData || []).filter(
-            (p) => p.role === "core_team"
-          );
-          setMembers(coreTeamOnly);
-        }
-
-        // 3) tasks
-        await fetchTasks();
-      } finally {
-        setLoading(false);
+      if (!brandsRes.error) {
+        setBrands(brandsRes.data || []);
+      } else {
+        console.error("Error loading brands", brandsRes.error);
       }
+
+      if (!membersRes.error) {
+        setMembers(membersRes.data || []);
+      } else {
+        console.error("Error loading members", membersRes.error);
+      }
+
+      await fetchTasks();
+      setLoading(false);
     }
 
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ---------- TASKS FETCH (no joins, sirf ids) --------------------
   async function fetchTasks() {
     const { data, error } = await supabase
       .from("tasks")
@@ -145,8 +137,8 @@ export default function TasksPage() {
         status,
         deadline,
         created_at,
-        brand_id,
-        assigned_to
+        brand:Brands ( id, name ),
+        assignee:profiles ( id, full_name )
       `
       )
       .order("deadline", { ascending: true })
@@ -161,16 +153,14 @@ export default function TasksPage() {
 
     // core_team user ko sirf apne tasks
     if (role === "core_team") {
-      rows = rows.filter(
-        (t) => String(t.assigned_to) === String(profile?.id)
-      );
+      rows = rows.filter((t) => t.assignee?.id === profile?.id);
     }
 
     setTasks(rows);
   }
 
-  // ---------- MODAL HANDLERS --------------------------------------
   function openModal() {
+    // defaults: pehla brand + pehla member
     setForm((prev) => ({
       ...prev,
       brand_id: brands[0]?.id || "",
@@ -178,8 +168,6 @@ export default function TasksPage() {
       type: TASK_TYPES[0],
       priority: "medium",
       deadline: "",
-      title: "",
-      description: "",
     }));
     setShowModal(true);
   }
@@ -201,7 +189,6 @@ export default function TasksPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  // ---------- CREATE TASK -----------------------------------------
   async function handleSubmit(e) {
     e.preventDefault();
     if (!form.brand_id || !form.title.trim() || !form.assigned_to) {
@@ -231,6 +218,34 @@ export default function TasksPage() {
         return;
       }
 
+      // 🔔 NEW: email notification trigger
+      try {
+        const brand = brands.find((b) => b.id === payload.brand_id);
+        const assignee = members.find((m) => m.id === payload.assigned_to);
+
+        await fetch("/api/notify-task", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mode: "task_assigned",
+            task: {
+              title: payload.title,
+              type: payload.type,
+              priority: payload.priority,
+              deadline: payload.deadline,
+              description: payload.description,
+              brandId: payload.brand_id,
+              brandName: brand?.name || "",
+              assigneeId: payload.assigned_to,
+              assigneeName: assignee?.full_name || "",
+            },
+          }),
+        });
+      } catch (notifyErr) {
+        console.error("Error calling /api/notify-task", notifyErr);
+        // yahan alert nahi de rahe, taake user ka flow break na ho
+      }
+
       await fetchTasks();
       closeModal();
     } finally {
@@ -238,18 +253,14 @@ export default function TasksPage() {
     }
   }
 
-  // ---------- FILTERED + ENRICHED TASKS ---------------------------
   const filteredTasks = useMemo(() => {
     return tasks.filter((t) => {
-      if (
-        filters.brandId !== "all" &&
-        String(t.brand_id) !== String(filters.brandId)
-      ) {
+      if (filters.brandId !== "all" && t.brand?.id !== filters.brandId) {
         return false;
       }
       if (
         filters.assigneeId !== "all" &&
-        String(t.assigned_to) !== String(filters.assigneeId)
+        t.assignee?.id !== filters.assigneeId
       ) {
         return false;
       }
@@ -268,18 +279,6 @@ export default function TasksPage() {
     return `status-chip status-chip-${status}`;
   }
 
-  // helper: id se brand / member
-  function getBrandName(id) {
-    const b = brands.find((br) => String(br.id) === String(id));
-    return b?.name || "—";
-  }
-
-  function getMemberName(id) {
-    const m = members.find((mb) => String(mb.id) === String(id));
-    return m?.full_name || "—";
-  }
-
-  // ---------- RENDER ------------------------------------------------
   return (
     <div className="page-shell">
       {/* Header */}
@@ -342,7 +341,7 @@ export default function TasksPage() {
               <option value="all">Everyone</option>
               {members.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.full_name}
+                  {m.full_name} ({m.role})
                 </option>
               ))}
             </select>
@@ -412,12 +411,12 @@ export default function TasksPage() {
 
                   {/* Brand */}
                   <div className="table-team-lead">
-                    {getBrandName(t.brand_id)}
+                    {t.brand?.name || "—"}
                   </div>
 
                   {/* Assignee */}
                   <div className="table-team-lead">
-                    {getMemberName(t.assigned_to)}
+                    {t.assignee?.full_name || "—"}
                   </div>
 
                   {/* Priority */}
@@ -477,7 +476,7 @@ export default function TasksPage() {
                   </select>
                 </label>
 
-                {/* Assignee – only core_team */}
+                {/* Assignee */}
                 <label>
                   Assigned to
                   <select
@@ -491,7 +490,7 @@ export default function TasksPage() {
                     <option value="">Select team member…</option>
                     {members.map((m) => (
                       <option key={m.id} value={m.id}>
-                        {m.full_name}
+                        {m.full_name} ({m.role})
                       </option>
                     ))}
                   </select>
@@ -503,7 +502,9 @@ export default function TasksPage() {
                   <select
                     className="select"
                     value={form.type}
-                    onChange={(e) => handleFormChange("type", e.target.value)}
+                    onChange={(e) =>
+                      handleFormChange("type", e.target.value)
+                    }
                   >
                     {TASK_TYPES.map((t) => (
                       <option key={t} value={t}>
