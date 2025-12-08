@@ -56,7 +56,7 @@ const STATUS_LABELS = {
   blocked: "Blocked",
 };
 
-// ✅ sirf in roles ko assignee dropdown me dikhana hai
+// sirf in roles ko assign karna allow hai (abhi sirf core_team)
 const ASSIGNEE_ROLES = ["core_team"];
 
 export default function TasksPage() {
@@ -68,6 +68,7 @@ export default function TasksPage() {
 
   const [brands, setBrands] = useState([]);
   const [members, setMembers] = useState([]);
+
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -90,6 +91,12 @@ export default function TasksPage() {
     description: "",
   });
 
+  // yahan se assign karne ke liye sirf core_team filter ho raha hai
+  const assignableMembers = useMemo(
+    () => members.filter((m) => ASSIGNEE_ROLES.includes(m.role)),
+    [members]
+  );
+
   // Load brands, members, tasks
   useEffect(() => {
     async function load() {
@@ -100,10 +107,10 @@ export default function TasksPage() {
           .from("Brands")
           .select("id, name")
           .order("name", { ascending: true }),
+        // yahan se saare profiles le rahe hain (no .in filter)
         supabase
           .from("profiles")
           .select("id, full_name, role")
-          .in("role", ASSIGNEE_ROLES) // ✅ sirf core_team
           .order("full_name", { ascending: true }),
       ]);
 
@@ -153,7 +160,7 @@ export default function TasksPage() {
 
     let rows = data || [];
 
-    // agar user khud core_team hai to sirf uske tasks
+    // core_team user ko sirf apne tasks dikhayenge
     if (role === "core_team") {
       rows = rows.filter((t) => t.assignee?.id === profile?.id);
     }
@@ -162,14 +169,15 @@ export default function TasksPage() {
   }
 
   function openModal() {
-    // defaults: pehla brand + pehla core_team member
     setForm((prev) => ({
       ...prev,
       brand_id: brands[0]?.id || "",
-      assigned_to: members[0]?.id || "",
+      assigned_to: assignableMembers[0]?.id || "",
       type: TASK_TYPES[0],
       priority: "medium",
       deadline: "",
+      title: "",
+      description: "",
     }));
     setShowModal(true);
   }
@@ -229,15 +237,12 @@ export default function TasksPage() {
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((t) => {
-      if (
-        filters.brandId !== "all" &&
-        String(t.brand?.id) !== String(filters.brandId)
-      ) {
+      if (filters.brandId !== "all" && t.brand?.id !== filters.brandId) {
         return false;
       }
       if (
         filters.assigneeId !== "all" &&
-        String(t.assignee?.id) !== String(filters.assigneeId)
+        t.assignee?.id !== filters.assigneeId
       ) {
         return false;
       }
@@ -453,7 +458,7 @@ export default function TasksPage() {
                   </select>
                 </label>
 
-                {/* Assignee – sirf core_team members */}
+                {/* Assignee (sirf core_team) */}
                 <label>
                   Assigned to
                   <select
@@ -465,7 +470,7 @@ export default function TasksPage() {
                     required
                   >
                     <option value="">Select team member…</option>
-                    {members.map((m) => (
+                    {assignableMembers.map((m) => (
                       <option key={m.id} value={m.id}>
                         {m.full_name} ({m.role})
                       </option>
@@ -479,9 +484,7 @@ export default function TasksPage() {
                   <select
                     className="select"
                     value={form.type}
-                    onChange={(e) =>
-                      handleFormChange("type", e.target.value)
-                    }
+                    onChange={(e) => handleFormChange("type", e.target.value)}
                   >
                     {TASK_TYPES.map((t) => (
                       <option key={t} value={t}>
