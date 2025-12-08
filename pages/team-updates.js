@@ -1,323 +1,382 @@
 // pages/team-updates.js
-import { useEffect, useState } from "react";
-import Head from "next/head";
-import Layout from "../components/Layout";
+import { useEffect, useMemo, useState } from "react";
 import supabase from "../lib/supabase";
+import { useAuth } from "../lib/auth";
+
+// --- 1. CONSTS ---------------------------------------------------------
+
+const TASK_TYPES = [
+  "Meta Ads",
+  "Google Ads",
+  "SEO",
+  "Content",
+  "Website / Landing Page",
+  "Design / Creatives",
+  "Reporting",
+  "Other",
+];
+
+const PRIORITY_OPTIONS = [
+  { value: "p1", label: "P1 – Urgent", pillClass: "pill-priority-1" },
+  { value: "p2", label: "P2 – High", pillClass: "pill-priority-2" },
+  { value: "p3", label: "P3 – Normal", pillClass: "pill-priority-3" },
+];
+
+const STATUS_OPTIONS = [
+  { value: "not_started", label: "Not started" },
+  { value: "in_progress", label: "In progress" },
+  { value: "blocked", label: "Blocked" },
+  { value: "done", label: "Done" },
+];
+
+const ASSIGNEE_ROLES = ["core_team", "manager"]; // yahan wale hi dropdown me ayenge
+
+// helper: blank form
+function emptyForm(defaultBrandId = "") {
+  return {
+    brand_id: defaultBrandId || "",
+    type: "Meta Ads",
+    assigned_to: "",
+    due_date: "",
+    title: "",
+    description: "",
+    priority: "p3",
+    status: "not_started",
+  };
+}
+
+// --- 2. PAGE COMPONENT -------------------------------------------------
 
 export default function TeamUpdatesPage() {
-  const [selectedDate, setSelectedDate] = useState(
-    new Date().toISOString().slice(0, 10) // YYYY-MM-DD
-  );
-  const [updates, setUpdates] = useState([]);
+  const { user } = useAuth();
+
   const [brands, setBrands] = useState([]);
+  const [profiles, setProfiles] = useState([]);
+  const [tasks, setTasks] = useState([]);
+
+  const [selectedBrandId, setSelectedBrandId] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const [showModal, setShowModal] = useState(false);
-  const [editingUpdate, setEditingUpdate] = useState(null);
+  const [form, setForm] = useState(emptyForm());
 
-  // form state
-  const [form, setForm] = useState({
-    brand_id: "",
-    assignee: "",
-    status: "in progress",
-    focus: "",
-    impact: "",
-  });
+  // ---- load data on mount --------------------------------------------
 
-  // ---------- Helpers ----------
-  function resetForm() {
-    setForm({
-      brand_id: "",
-      assignee: "",
-      status: "in progress",
-      focus: "",
-      impact: "",
-    });
-    setEditingUpdate(null);
-  }
+  useEffect(() => {
+    async function loadAll() {
+      setLoading(true);
+      setErrorMessage("");
 
-  function openCreate() {
-    resetForm();
+      const [brandsRes, profilesRes, tasksRes] = await Promise.all([
+        supabase.from("brands").select("id, name").order("name", {
+          ascending: true,
+        }),
+        supabase.from("profiles").select("id, full_name, role"),
+        supabase
+          .from("tasks")
+          .select("*")
+          .order("due_date", { ascending: true })
+          .order("created_at", { ascending: true }),
+      ]);
+
+      if (brandsRes.error || profilesRes.error || tasksRes.error) {
+        console.error("Load error", {
+          brandsError: brandsRes.error,
+          profilesError: profilesRes.error,
+          tasksError: tasksRes.error,
+        });
+        setErrorMessage("Error loading tasks. Please refresh.");
+      } else {
+        setBrands(brandsRes.data || []);
+        setProfiles(profilesRes.data || []);
+        setTasks(tasksRes.data || []);
+
+        // default brand selection
+        const firstBrand = brandsRes.data?.[0];
+        if (firstBrand && !selectedBrandId) {
+          setSelectedBrandId(String(firstBrand.id));
+          setForm(emptyForm(String(firstBrand.id)));
+        }
+      }
+
+      setLoading(false);
+    }
+
+    loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ---- derived data ---------------------------------------------------
+
+  const profileMap = useMemo(() => {
+    const map = new Map();
+    for (const p of profiles) {
+      map.set(p.id, p);
+    }
+    return map;
+  }, [profiles]);
+
+  // sirf core_team + manager hi dropdown me
+  const assignees = useMemo(
+    () => profiles.filter((p) => ASSIGNEE_ROLES.includes(p.role)),
+    [profiles]
+  );
+
+  const filteredTasks = useMemo(() => {
+    if (!selectedBrandId) return tasks;
+    return tasks.filter((t) => String(t.brand_id) === String(selectedBrandId));
+  }, [tasks, selectedBrandId]);
+
+  const selectedBrand = brands.find(
+    (b) => String(b.id) === String(selectedBrandId)
+  );
+
+  // ---- handlers -------------------------------------------------------
+
+  function openNewTaskModal() {
+    setForm(emptyForm(selectedBrandId || brands[0]?.id || ""));
     setShowModal(true);
-  }
-
-  function openEdit(update) {
-    setEditingUpdate(update);
-    setForm({
-      brand_id: update.brand_id,
-      assignee: update.assignee || "",
-      status: update.status || "in progress",
-      focus: update.focus || "",
-      impact: update.impact || "",
-    });
-    setShowModal(true);
+    setErrorMessage("");
   }
 
   function closeModal() {
     setShowModal(false);
-    resetForm();
+    setErrorMessage("");
   }
 
-  function handleFormChange(key, value) {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  }
-
-  // ---------- Load brands + updates ----------
-  useEffect(() => {
-    fetchBrands();
-  }, []);
-
-  useEffect(() => {
-    fetchUpdates();
-  }, [selectedDate]);
-
-  async function fetchBrands() {
-    const { data, error } = await supabase
-      .from("Brands")
-      .select("id, name")
-      .order("name", { ascending: true });
-
-    if (error) {
-      console.error(error);
-    } else {
-      setBrands(data || []);
-    }
-  }
-
-  async function fetchUpdates() {
-    setLoading(true);
-    setError(null);
-
-    // selectedDate = "YYYY-MM-DD"
-    const start = new Date(selectedDate);
-    const end = new Date(selectedDate);
-    end.setDate(end.getDate() + 1); // next day
-
-    const { data, error } = await supabase
-      .from("daily_updates")
-      .select(
-        `
-        id,
-        brand_id,
-        created_at,
-        assignee,
-        status,
-        focus,
-        impact,
-        Brands ( name )
-      `
-      )
-      .gte("created_at", start.toISOString())
-      .lt("created_at", end.toISOString())
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error(error);
-      setError("Could not load updates.");
-    } else {
-      const mapped = (data || []).map((row) => ({
-        ...row,
-        brand_name: row.Brands?.name || "",
-      }));
-      setUpdates(mapped);
-    }
-
-    setLoading(false);
-  }
-
-  // ---------- Create / Update ----------
-  async function handleSave(e) {
+  async function handleCreateTask(e) {
     e.preventDefault();
-    if (!form.brand_id || !form.assignee.trim() || !form.focus.trim()) {
-      alert("Brand, assignee aur focus required hain.");
+    if (!form.brand_id || !form.assigned_to || !form.title) {
+      setErrorMessage("Brand, assignee and task title are required.");
       return;
     }
 
     setSaving(true);
-    try {
-      if (editingUpdate) {
-        // UPDATE
-        const { error } = await supabase
-          .from("daily_updates")
-          .update({
-            brand_id: form.brand_id,
-            assignee: form.assignee,
-            status: form.status,
-            focus: form.focus,
-            impact: form.impact,
-          })
-          .eq("id", editingUpdate.id);
+    setErrorMessage("");
 
-        if (error) throw error;
-      } else {
-        // INSERT (created_at Supabase khud set karega)
-        const { error } = await supabase.from("daily_updates").insert([
-          {
-            brand_id: form.brand_id,
-            assignee: form.assignee,
-            status: form.status,
-            focus: form.focus,
-            impact: form.impact,
-          },
-        ]);
+    const insertPayload = {
+      brand_id: Number(form.brand_id),
+      type: form.type,
+      assigned_to: form.assigned_to,
+      title: form.title.trim(),
+      description: form.description.trim(),
+      priority: form.priority,
+      status: form.status,
+      due_date: form.due_date || null,
+      created_by: user?.id || null,
+    };
 
-        if (error) throw error;
-      }
+    const { data, error } = await supabase
+      .from("tasks")
+      .insert([insertPayload])
+      .select()
+      .single();
 
-      await fetchUpdates(); // refresh list
-      closeModal();
-    } catch (err) {
-      console.error(err);
-      alert("Error saving update – console check karo.");
-    } finally {
-      setSaving(false);
+    if (error) {
+      console.error("Create task error", error);
+      setErrorMessage("Could not save task. Please try again.");
+    } else if (data) {
+      setTasks((prev) => [...prev, data]);
+      setShowModal(false);
+      setForm(emptyForm(selectedBrandId));
     }
+
+    setSaving(false);
   }
 
-  // ---------- Delete ----------
-  async function handleDelete(update) {
-    if (
-      !window.confirm(
-        `Delete karein? "${update.brand_name}" ka yeh update hamesha ke liye hat jayega.`
-      )
-    )
+  async function toggleTaskDone(task) {
+    const newStatus = task.status === "done" ? "in_progress" : "done";
+    const { data, error } = await supabase
+      .from("tasks")
+      .update({ status: newStatus })
+      .eq("id", task.id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Update task error", error);
       return;
-
-    try {
-      const { error } = await supabase
-        .from("daily_updates")
-        .delete()
-        .eq("id", update.id);
-
-      if (error) throw error;
-
-      setUpdates((prev) => prev.filter((u) => u.id !== update.id));
-    } catch (err) {
-      console.error(err);
-      alert("Error deleting update.");
     }
+    setTasks((prev) => prev.map((t) => (t.id === task.id ? data : t)));
   }
 
-  // ---------- Render ----------
+  // priority pill helper
+  function priorityLabel(priority) {
+    const match = PRIORITY_OPTIONS.find((p) => p.value === priority);
+    return match ? match.label : "Normal";
+  }
+  function priorityClass(priority) {
+    const match = PRIORITY_OPTIONS.find((p) => p.value === priority);
+    return match ? match.pillClass : "pill-priority-3";
+  }
+
+  // ---- render ---------------------------------------------------------
+
   return (
-    <Layout>
-      <Head>
-        <title>Team Updates • Central Marketing Dashboard</title>
-      </Head>
+    <div className="page-shell">
+      {/* Header */}
+      <header className="page-header">
+        <div className="page-header-main">
+          <div>
+            <h1 className="page-title">Team Tasks</h1>
+            <p className="page-subtitle">
+              Har brand ke liye daily tasks – SEO, Content, Web, Ads, Creative
+              – sab ek jagah track.
+            </p>
+          </div>
 
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Team Updates</h1>
-          <p className="page-subtitle">
-            Roz ka detailed log – kis brand pe kis ne kya kaam kia.
-          </p>
+          <button type="button" className="pill-filter" onClick={openNewTaskModal}>
+            <span>+ Assign New Task</span>
+          </button>
         </div>
 
-        <button className="btn btn-primary" onClick={openCreate}>
-          + Add Update
-        </button>
-      </div>
-
-      {/* Toolbar */}
-      <div className="toolbar">
-        <div className="toolbar-group">
-          <label className="toolbar-label">
-            Date
-            <input
-              type="date"
-              className="input"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-            />
-          </label>
+        <div className="page-header-meta">
+          <span>
+            {brands.length} brands • {filteredTasks.length} active tasks
+          </span>
         </div>
-      </div>
+      </header>
 
-      {/* Card */}
-      <div className="card">
-        <div className="card-header">
-          <h2 className="card-title">
-            Updates for {selectedDate}{" "}
-            <span className="muted">({updates.length})</span>
-          </h2>
+      {/* Brand filter */}
+      <section className="section-card" style={{ marginTop: 0 }}>
+        <div className="toolbar">
+          <div className="toolbar-group">
+            <label style={{ fontSize: "0.8rem" }}>
+              Brand
+              <select
+                className="input"
+                style={{ marginLeft: "0.5rem" }}
+                value={selectedBrandId}
+                onChange={(e) => setSelectedBrandId(e.target.value)}
+              >
+                <option value="">All brands</option>
+                {brands.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
         </div>
+      </section>
 
-        <div className="card-body table-wrapper">
-          {loading ? (
-            <div>Loading updates…</div>
-          ) : error ? (
-            <div className="error">{error}</div>
-          ) : updates.length === 0 ? (
-            <div className="empty">Is date ke liye koi updates nahi hain.</div>
-          ) : (
-            <div className="table-shell">
-              <div className="table-head-row">
-                <div>Time</div>
-                <div>Brand</div>
-                <div>Assignee</div>
-                <div>Status</div>
-                <div>Today&apos;s Focus</div>
-                <div>Impact / Result</div>
-                <div className="table-col-actions">Actions</div>
-              </div>
+      {/* Error / loading */}
+      {errorMessage && (
+        <div className="empty-state" style={{ color: "#fecaca" }}>
+          {errorMessage}
+        </div>
+      )}
+      {loading && !errorMessage && (
+        <div className="loading-state">Loading tasks…</div>
+      )}
 
-              <div className="table-body">
-                {updates.map((u) => (
-                  <div key={u.id} className="table-row">
-                    <div className="table-cell">
-                      {u.created_at
-                        ? new Date(u.created_at).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })
-                        : "—"}
+      {/* Task list */}
+      {!loading && filteredTasks.length === 0 && !errorMessage && (
+        <div className="empty-state">
+          <div className="empty-state-dot" />
+          <span>Abhi koi task nahi – “Assign New Task” se start karo.</span>
+        </div>
+      )}
+
+      {!loading && filteredTasks.length > 0 && (
+        <section className="section-card" style={{ marginTop: 16 }}>
+          <div className="section-label">Tasks</div>
+          <div className="table-shell">
+            <div className="table-head-row">
+              <div>Task</div>
+              <div>Owner</div>
+              <div>Meta</div>
+              <div>Status</div>
+            </div>
+            <div className="table-body">
+              {filteredTasks.map((task) => {
+                const brand =
+                  brands.find(
+                    (b) => String(b.id) === String(task.brand_id)
+                  ) || selectedBrand;
+                const owner = profileMap.get(task.assigned_to);
+
+                return (
+                  <div key={task.id} className="table-row">
+                    {/* Task / title */}
+                    <div className="table-cell-brand">
+                      <span className="table-brand-name">
+                        {task.title || "(Untitled task)"}
+                      </span>
+                      <span className="table-brand-sub">
+                        {brand?.name || "Unknown brand"} • {task.type}
+                      </span>
                     </div>
-                    <div className="table-cell">{u.brand_name || "—"}</div>
-                    <div className="table-cell">{u.assignee || "—"}</div>
-                    <div className="table-cell">{u.status || "—"}</div>
-                    <div className="table-cell">{u.focus || "—"}</div>
-                    <div className="table-cell">{u.impact || "—"}</div>
-                    <div className="table-actions">
-                      <button
-                        className="btn btn-ghost"
-                        onClick={() => openEdit(u)}
+
+                    {/* Owner */}
+                    <div>
+                      <div className="table-team-lead">
+                        {owner?.full_name || "Unknown user"}
+                      </div>
+                      <div className="table-brand-sub">
+                        Due:{" "}
+                        {task.due_date
+                          ? new Date(task.due_date).toLocaleDateString()
+                          : "No date"}
+                      </div>
+                    </div>
+
+                    {/* Meta */}
+                    <div>
+                      <span
+                        className={`pill ${priorityClass(task.priority)}`}
+                        style={{ marginRight: 8 }}
                       >
-                        Edit
-                      </button>
+                        {priorityLabel(task.priority)}
+                      </span>
+                      <span className="table-brand-sub">
+                        Created{" "}
+                        {task.created_at
+                          ? new Date(task.created_at).toLocaleDateString()
+                          : ""}
+                      </span>
+                    </div>
+
+                    {/* Status / toggle */}
+                    <div className="table-status-cell">
                       <button
-                        className="btn btn-danger"
-                        onClick={() => handleDelete(u)}
+                        type="button"
+                        className="pill-filter"
+                        onClick={() => toggleTaskDone(task)}
                       >
-                        Delete
+                        <span>
+                          {task.status === "done" ? "Mark in progress" : "Mark done"}
+                        </span>
                       </button>
                     </div>
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
-          )}
-        </div>
-      </div>
+          </div>
+        </section>
+      )}
 
-      {/* Modal */}
+      {/* --- Modal: Assign New Task ------------------------------------ */}
       {showModal && (
         <div className="modal-backdrop">
           <div className="modal">
-            <h2 className="modal-title">
-              {editingUpdate ? "Edit Update" : "Add Update"}
-            </h2>
+            <h2 className="modal-title">Assign New Task</h2>
 
-            <form onSubmit={handleSave} className="modal-body">
+            <form onSubmit={handleCreateTask}>
               <div className="form-grid">
+                {/* Brand */}
                 <label>
                   Brand
                   <select
-                    className="select"
+                    className="input"
                     value={form.brand_id}
-                    onChange={(e) => handleFormChange("brand_id", e.target.value)}
-                    required
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, brand_id: e.target.value }))
+                    }
                   >
                     <option value="">Select brand…</option>
                     {brands.map((b) => (
@@ -328,77 +387,166 @@ export default function TeamUpdatesPage() {
                   </select>
                 </label>
 
+                {/* Date */}
                 <label>
-                  Assignee
+                  Deadline
                   <input
+                    type="date"
                     className="input"
-                    value={form.assignee}
+                    value={form.due_date}
                     onChange={(e) =>
-                      handleFormChange("assignee", e.target.value)
+                      setForm((prev) => ({ ...prev, due_date: e.target.value }))
                     }
-                    placeholder="e.g. Noraiz, Tahir…"
-                    required
                   />
                 </label>
 
+                {/* Task type */}
+                <label>
+                  Task type
+                  <select
+                    className="input"
+                    value={form.type}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, type: e.target.value }))
+                    }
+                  >
+                    {TASK_TYPES.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                {/* Assigned to – yahan fix hai */}
+                <label>
+                  Assigned to
+                  <select
+                    className="input"
+                    value={form.assigned_to}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        assigned_to: e.target.value,
+                      }))
+                    }
+                  >
+                    <option value="">Select team member…</option>
+                    {assignees.map((member) => (
+                      <option key={member.id} value={member.id}>
+                        {member.full_name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                {/* Title */}
+                <label className="full-width">
+                  Task title
+                  <input
+                    type="text"
+                    className="input"
+                    placeholder="e.g. 123 Flights – new Meta creatives"
+                    value={form.title}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, title: e.target.value }))
+                    }
+                  />
+                </label>
+
+                {/* Description */}
+                <label className="full-width">
+                  Task description
+                  <textarea
+                    rows={4}
+                    className="input"
+                    placeholder="Details, links, access info, references, etc."
+                    value={form.description}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        description: e.target.value,
+                      }))
+                    }
+                  />
+                </label>
+
+                {/* Priority */}
+                <label>
+                  Priority
+                  <select
+                    className="input"
+                    value={form.priority}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        priority: e.target.value,
+                      }))
+                    }
+                  >
+                    {PRIORITY_OPTIONS.map((p) => (
+                      <option key={p.value} value={p.value}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                {/* Status */}
                 <label>
                   Status
                   <select
-                    className="select"
+                    className="input"
                     value={form.status}
-                    onChange={(e) => handleFormChange("status", e.target.value)}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        status: e.target.value,
+                      }))
+                    }
                   >
-                    <option value="in progress">In progress</option>
-                    <option value="done">Done</option>
-                    <option value="blocked">Blocked</option>
+                    {STATUS_OPTIONS.map((s) => (
+                      <option key={s.value} value={s.value}>
+                        {s.label}
+                      </option>
+                    ))}
                   </select>
                 </label>
               </div>
 
-              <label className="full-width">
-                Today&apos;s focus
-                <textarea
-                  className="textarea"
-                  rows={2}
-                  value={form.focus}
-                  onChange={(e) => handleFormChange("focus", e.target.value)}
-                  placeholder="Kis cheez pe kaam hua?"
-                  required
-                />
-              </label>
-
-              <label className="full-width">
-                Impact / result
-                <textarea
-                  className="textarea"
-                  rows={2}
-                  value={form.impact}
-                  onChange={(e) => handleFormChange("impact", e.target.value)}
-                  placeholder="Is se kya result / impact aaya?"
-                />
-              </label>
+              {errorMessage && (
+                <div
+                  style={{
+                    marginTop: "0.75rem",
+                    fontSize: "0.8rem",
+                    color: "#fecaca",
+                  }}
+                >
+                  {errorMessage}
+                </div>
+              )}
 
               <div className="modal-footer">
                 <button
                   type="button"
-                  className="btn btn-ghost"
+                  className="pill-filter"
                   onClick={closeModal}
                   disabled={saving}
                 >
-                  Cancel
+                  <span>Cancel</span>
                 </button>
                 <button
                   type="submit"
-                  className="btn btn-primary"
+                  className="pill-filter pill-filter--active"
                   disabled={saving}
                 >
-                  {saving ? "Saving…" : "Save"}
+                  <span>{saving ? "Saving…" : "Assign Task"}</span>
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-    </Layout>
+    </div>
   );
 }
