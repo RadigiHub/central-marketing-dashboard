@@ -56,13 +56,6 @@ const STATUS_LABELS = {
   blocked: "Blocked",
 };
 
-// yahan ap real emails daal lena:
-const CORE_TEAM_EMAILS = {
-  // "Shehroz Malik": "tumhara-email@example.com",
-  // "Muskan": "muskan@example.com",
-  // "Tahir": "tahir@example.com",
-};
-
 export default function TasksPage() {
   const { profile } = useAuth();
   const role = profile?.role || null;
@@ -95,7 +88,9 @@ export default function TasksPage() {
     description: "",
   });
 
+  // -----------------------------
   // Load brands, members, tasks
+  // -----------------------------
   useEffect(() => {
     async function load() {
       setLoading(true);
@@ -105,23 +100,25 @@ export default function TasksPage() {
           .from("Brands")
           .select("id, name")
           .order("name", { ascending: true }),
+
+        // sirf core_team ko dropdown me dikhana hai
         supabase
           .from("profiles")
           .select("id, full_name, role")
-          .in("role", ["core_team", "manager", "super_admin", "boss"])
+          .eq("role", "core_team")
           .order("full_name", { ascending: true }),
       ]);
 
-      if (!brandsRes.error) {
-        setBrands(brandsRes.data || []);
-      } else {
+      if (brandsRes.error) {
         console.error("Error loading brands", brandsRes.error);
+      } else {
+        setBrands(brandsRes.data || []);
       }
 
-      if (!membersRes.error) {
-        setMembers(membersRes.data || []);
-      } else {
+      if (membersRes.error) {
         console.error("Error loading members", membersRes.error);
+      } else {
+        setMembers(membersRes.data || []);
       }
 
       await fetchTasks();
@@ -132,6 +129,9 @@ export default function TasksPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // -----------------------------
+  // Supabase se tasks laao
+  // -----------------------------
   async function fetchTasks() {
     const { data, error } = await supabase
       .from("tasks")
@@ -144,7 +144,6 @@ export default function TasksPage() {
         status,
         deadline,
         created_at,
-        description,
         brand:Brands ( id, name ),
         assignee:profiles ( id, full_name )
       `
@@ -167,16 +166,17 @@ export default function TasksPage() {
     setTasks(rows);
   }
 
+  // -----------------------------
+  // Modal open/close
+  // -----------------------------
   function openModal() {
     setForm((prev) => ({
       ...prev,
       brand_id: brands[0]?.id || "",
-      assigned_to: "",
+      assigned_to: members[0]?.id || "",
       type: TASK_TYPES[0],
       priority: "medium",
       deadline: "",
-      title: "",
-      description: "",
     }));
     setShowModal(true);
   }
@@ -198,6 +198,9 @@ export default function TasksPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  // -----------------------------
+  // Task save karna
+  // -----------------------------
   async function handleSubmit(e) {
     e.preventDefault();
     if (!form.brand_id || !form.title.trim() || !form.assigned_to) {
@@ -227,24 +230,8 @@ export default function TasksPage() {
         return;
       }
 
-      // Email notification – sirf tab, jab mapping me email ho
-      const assignee = members.find((m) => m.id === form.assigned_to);
-      const brand = brands.find((b) => b.id === form.brand_id);
-      const toEmail = assignee ? CORE_TEAM_EMAILS[assignee.full_name] : null;
-
-      if (assignee && toEmail) {
-        // background me bhej do – UI ko block mat karo
-        sendTaskAssignedEmail({
-          to: toEmail,
-          assigneeName: assignee.full_name,
-          taskTitle: payload.title,
-          brandName: brand?.name || "",
-          priority: payload.priority,
-          deadline: payload.deadline,
-        }).catch((err) => {
-          console.error("Error sending task email", err);
-        });
-      }
+      // Email logic abhi temporarily hata diya hai
+      // taake page stable rahe. Baad me dobara add kar sakte hain.
 
       await fetchTasks();
       closeModal();
@@ -253,6 +240,9 @@ export default function TasksPage() {
     }
   }
 
+  // -----------------------------
+  // Filters
+  // -----------------------------
   const filteredTasks = useMemo(() => {
     return tasks.filter((t) => {
       if (filters.brandId !== "all" && t.brand?.id !== filters.brandId) {
@@ -279,6 +269,9 @@ export default function TasksPage() {
     return `status-chip status-chip-${status}`;
   }
 
+  // -----------------------------
+  // UI
+  // -----------------------------
   return (
     <div className="page-shell">
       {/* Header */}
@@ -447,6 +440,154 @@ export default function TasksPage() {
           </div>
         )}
       </div>
+
+      {/* Modal: Assign Task */}
+      {showModal && isAdmin && (
+        <div className="modal-backdrop">
+          <div className="modal">
+            <h2 className="modal-title">Assign New Task</h2>
+
+            <form onSubmit={handleSubmit} className="modal-body">
+              <div className="form-grid">
+                {/* Brand */}
+                <label>
+                  Brand
+                  <select
+                    className="select"
+                    value={form.brand_id}
+                    onChange={(e) =>
+                      handleFormChange("brand_id", e.target.value)
+                    }
+                    required
+                  >
+                    <option value="">Select brand…</option>
+                    {brands.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                {/* Assignee */}
+                <label>
+                  Assigned to
+                  <select
+                    className="select"
+                    value={form.assigned_to}
+                    onChange={(e) =>
+                      handleFormChange("assigned_to", e.target.value)
+                    }
+                    required
+                  >
+                    <option value="">Select team member…</option>
+                    {members.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.full_name} ({m.role})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                {/* Task Type */}
+                <label>
+                  Task type
+                  <select
+                    className="select"
+                    value={form.type}
+                    onChange={(e) =>
+                      handleFormChange("type", e.target.value)
+                    }
+                  >
+                    {TASK_TYPES.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                {/* Priority */}
+                <label>
+                  Priority
+                  <select
+                    className="select"
+                    value={form.priority}
+                    onChange={(e) =>
+                      handleFormChange("priority", e.target.value)
+                    }
+                  >
+                    {PRIORITY_OPTIONS.map((p) => (
+                      <option key={p.value} value={p.value}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                {/* Deadline */}
+                <label>
+                  Deadline
+                  <input
+                    type="date"
+                    className="input"
+                    value={form.deadline}
+                    onChange={(e) =>
+                      handleFormChange("deadline", e.target.value)
+                    }
+                  />
+                </label>
+
+                {/* Title */}
+                <label>
+                  Task title
+                  <input
+                    className="input"
+                    placeholder="e.g. 123 Flights – new Meta creatives"
+                    value={form.title}
+                    onChange={(e) =>
+                      handleFormChange("title", e.target.value)
+                    }
+                    required
+                  />
+                </label>
+              </div>
+
+              {/* Description */}
+              <label className="full-width" style={{ marginTop: "0.75rem" }}>
+                Task description
+                <textarea
+                  className="textarea"
+                  rows={3}
+                  placeholder="Details, links, access info, references, etc."
+                  value={form.description}
+                  onChange={(e) =>
+                    handleFormChange("description", e.target.value)
+                  }
+                />
+              </label>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={closeModal}
+                  disabled={saving}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={saving}
+                >
+                  {saving ? "Saving…" : "Assign Task"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
