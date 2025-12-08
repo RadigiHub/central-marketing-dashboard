@@ -101,10 +101,10 @@ export default function TasksPage() {
           .select("id, name")
           .order("name", { ascending: true }),
 
-        // sirf core_team ko dropdown me dikhana hai
+        // dropdown me sirf core_team members
         supabase
           .from("profiles")
-          .select("id, full_name, role")
+          .select("id, full_name, role, email")
           .eq("role", "core_team")
           .order("full_name", { ascending: true }),
       ]);
@@ -130,7 +130,7 @@ export default function TasksPage() {
   }, []);
 
   // -----------------------------
-  // Supabase se tasks laao
+  // Supabase se tasks laao (simple select)
   // -----------------------------
   async function fetchTasks() {
     const { data, error } = await supabase
@@ -144,8 +144,10 @@ export default function TasksPage() {
         status,
         deadline,
         created_at,
-        brand:Brands ( id, name ),
-        assignee:profiles ( id, full_name )
+        brand_id,
+        assigned_to,
+        description,
+        created_by
       `
       )
       .order("deadline", { ascending: true })
@@ -160,7 +162,7 @@ export default function TasksPage() {
 
     // core_team user ko sirf apne tasks
     if (role === "core_team") {
-      rows = rows.filter((t) => t.assignee?.id === profile?.id);
+      rows = rows.filter((t) => t.assigned_to === profile?.id);
     }
 
     setTasks(rows);
@@ -226,12 +228,9 @@ export default function TasksPage() {
 
       if (error) {
         console.error("Error inserting task", error);
-        alert("Task save kerte waqt error aaya. Console check karo.");
+        alert("Task save kerte waqt error aaya:\n" + error.message);
         return;
       }
-
-      // Email logic abhi temporarily hata diya hai
-      // taake page stable rahe. Baad me dobara add kar sakte hain.
 
       await fetchTasks();
       closeModal();
@@ -245,12 +244,12 @@ export default function TasksPage() {
   // -----------------------------
   const filteredTasks = useMemo(() => {
     return tasks.filter((t) => {
-      if (filters.brandId !== "all" && t.brand?.id !== filters.brandId) {
+      if (filters.brandId !== "all" && t.brand_id !== filters.brandId) {
         return false;
       }
       if (
         filters.assigneeId !== "all" &&
-        t.assignee?.id !== filters.assigneeId
+        t.assigned_to !== filters.assigneeId
       ) {
         return false;
       }
@@ -267,6 +266,17 @@ export default function TasksPage() {
 
   function statusClass(status) {
     return `status-chip status-chip-${status}`;
+  }
+
+  // Helpers to show names instead of IDs
+  function getBrandName(brand_id) {
+    const b = brands.find((br) => br.id === brand_id);
+    return b?.name || "—";
+  }
+
+  function getAssigneeName(user_id) {
+    const m = members.find((mb) => mb.id === user_id);
+    return m ? `${m.full_name} (${m.role})` : "—";
   }
 
   // -----------------------------
@@ -404,12 +414,12 @@ export default function TasksPage() {
 
                   {/* Brand */}
                   <div className="table-team-lead">
-                    {t.brand?.name || "—"}
+                    {getBrandName(t.brand_id)}
                   </div>
 
                   {/* Assignee */}
                   <div className="table-team-lead">
-                    {t.assignee?.full_name || "—"}
+                    {getAssigneeName(t.assigned_to)}
                   </div>
 
                   {/* Priority */}
