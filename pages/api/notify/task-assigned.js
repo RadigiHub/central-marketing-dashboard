@@ -1,9 +1,11 @@
-// pages/api/notify-task.js
+// pages/api/notify/task-assigned.js
 import { sendTaskAssignedEmail } from "../../../lib/notifications/email";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(405).end();
+    return res
+      .status(405)
+      .json({ ok: false, error: "method-not-allowed" });
   }
 
   try {
@@ -35,6 +37,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true });
   } catch (err) {
     console.error("notify-task error", err);
-    return res.status(500).json({ ok: false });
+    return res.status(500).json({ ok: false, error: "internal-error" });
   }
 }
