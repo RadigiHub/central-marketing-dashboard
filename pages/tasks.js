@@ -203,6 +203,9 @@ export default function TasksPage() {
   // -----------------------------
   // Task save karna + email notify
   // -----------------------------
+    // -----------------------------
+  // Task save karna + email notify
+  // -----------------------------
   async function handleSubmit(e) {
     e.preventDefault();
     if (!form.brand_id || !form.title.trim() || !form.assigned_to) {
@@ -224,11 +227,8 @@ export default function TasksPage() {
         created_by: profile?.id || null,
       };
 
-      const { data, error } = await supabase
-        .from("tasks")
-        .insert([payload])
-        .select()
-        .single();
+      // 1) Task DB me save
+      const { error } = await supabase.from("tasks").insert([payload]);
 
       if (error) {
         console.error("Error inserting task", error);
@@ -236,22 +236,14 @@ export default function TasksPage() {
         return;
       }
 
-      // -------------------------
-      // NEW: API call to send email
-      // -------------------------
-      try {
-        const assignee = members.find(
-          (m) => m.id === payload.assigned_to
-        );
+      // 2) Assignee ka email nikaalo
+      const assignee = members.find((m) => m.id === form.assigned_to);
 
-        if (!assignee || !assignee.email) {
-          console.warn(
-            "No email found for assignee id:",
-            payload.assigned_to
-          );
-        } else {
-          const brand = brands.find((b) => b.id === payload.brand_id);
-
+      if (!assignee || !assignee.email) {
+        console.warn("No email for assignee id:", form.assigned_to);
+      } else {
+        // 3) API ko call karo – Resend email
+        try {
           await fetch("/api/notify/task-assigned", {
             method: "POST",
             headers: {
@@ -260,19 +252,20 @@ export default function TasksPage() {
             body: JSON.stringify({
               email: assignee.email,
               assigneeName: assignee.full_name,
-              brandName: brand?.name || "Unknown brand",
-              title: payload.title,
-              type: payload.type,
-              deadline: payload.deadline,
-              description: payload.description || "",
+              brandName: getBrandName(form.brand_id),
+              title: form.title.trim(),
+              type: form.type,
+              deadline: form.deadline || null,
+              description: form.description?.trim() || "",
             }),
           });
+        } catch (notifyError) {
+          console.error("Failed to send task-assigned email", notifyError);
+          // yahan alert nahi kar rahe, taake user ko lagay nahi ke task save hi nahi hua
         }
-      } catch (notifyErr) {
-        console.error("Error calling notify-task API", notifyErr);
       }
-      // --------- end email part ---------
 
+      // 4) UI refresh
       await fetchTasks();
       closeModal();
     } finally {
