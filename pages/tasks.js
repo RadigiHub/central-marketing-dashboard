@@ -56,9 +56,6 @@ const STATUS_LABELS = {
   blocked: "Blocked",
 };
 
-// sirf in roles ko assign karna allow hai (abhi sirf core_team)
-const ASSIGNEE_ROLES = ["core_team"];
-
 export default function TasksPage() {
   const { profile } = useAuth();
   const role = profile?.role || null;
@@ -67,7 +64,7 @@ export default function TasksPage() {
     role === "super_admin" || role === "boss" || role === "manager";
 
   const [brands, setBrands] = useState([]);
-  const [members, setMembers] = useState([]);
+  const [members, setMembers] = useState([]); // sirf core_team yahan ayegi
 
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -91,49 +88,51 @@ export default function TasksPage() {
     description: "",
   });
 
-  // yahan se assign karne ke liye sirf core_team filter ho raha hai
-  const assignableMembers = useMemo(
-    () => members.filter((m) => ASSIGNEE_ROLES.includes(m.role)),
-    [members]
-  );
-
-  // Load brands, members, tasks
+  // ---------- LOAD BRANDS + MEMBERS + TASKS ----------------------
   useEffect(() => {
     async function load() {
-      setLoading(true);
+      try {
+        setLoading(true);
 
-      const [brandsRes, membersRes] = await Promise.all([
-        supabase
+        // 1) brands
+        const { data: brandsData, error: brandsError } = await supabase
           .from("Brands")
           .select("id, name")
-          .order("name", { ascending: true }),
-        // yahan se saare profiles le rahe hain (no .in filter)
-        supabase
+          .order("name", { ascending: true });
+
+        if (brandsError) {
+          console.error("Error loading brands", brandsError);
+        } else {
+          setBrands(brandsData || []);
+        }
+
+        // 2) members – simple select, phir JS me filter = sirf core_team
+        const { data: profilesData, error: profilesError } = await supabase
           .from("profiles")
           .select("id, full_name, role")
-          .order("full_name", { ascending: true }),
-      ]);
+          .order("full_name", { ascending: true });
 
-      if (!brandsRes.error) {
-        setBrands(brandsRes.data || []);
-      } else {
-        console.error("Error loading brands", brandsRes.error);
+        if (profilesError) {
+          console.error("Error loading profiles", profilesError);
+        } else {
+          const coreTeamOnly = (profilesData || []).filter(
+            (p) => p.role === "core_team"
+          );
+          setMembers(coreTeamOnly);
+        }
+
+        // 3) tasks
+        await fetchTasks();
+      } finally {
+        setLoading(false);
       }
-
-      if (!membersRes.error) {
-        setMembers(membersRes.data || []);
-      } else {
-        console.error("Error loading members", membersRes.error);
-      }
-
-      await fetchTasks();
-      setLoading(false);
     }
 
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ---------- TASKS FETCH (no joins, sirf ids) --------------------
   async function fetchTasks() {
     const { data, error } = await supabase
       .from("tasks")
@@ -146,8 +145,8 @@ export default function TasksPage() {
         status,
         deadline,
         created_at,
-        brand:Brands ( id, name ),
-        assignee:profiles ( id, full_name )
+        brand_id,
+        assigned_to
       `
       )
       .order("deadline", { ascending: true })
@@ -160,19 +159,22 @@ export default function TasksPage() {
 
     let rows = data || [];
 
-    // core_team user ko sirf apne tasks dikhayenge
+    // core_team user ko sirf apne tasks
     if (role === "core_team") {
-      rows = rows.filter((t) => t.assignee?.id === profile?.id);
+      rows = rows.filter(
+        (t) => String(t.assigned_to) === String(profile?.id)
+      );
     }
 
     setTasks(rows);
   }
 
+  // ---------- MODAL HANDLERS --------------------------------------
   function openModal() {
     setForm((prev) => ({
       ...prev,
       brand_id: brands[0]?.id || "",
-      assigned_to: assignableMembers[0]?.id || "",
+      assigned_to: members[0]?.id || "",
       type: TASK_TYPES[0],
       priority: "medium",
       deadline: "",
@@ -199,6 +201,7 @@ export default function TasksPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  // ---------- CREATE TASK -----------------------------------------
   async function handleSubmit(e) {
     e.preventDefault();
     if (!form.brand_id || !form.title.trim() || !form.assigned_to) {
@@ -235,14 +238,18 @@ export default function TasksPage() {
     }
   }
 
+  // ---------- FILTERED + ENRICHED TASKS ---------------------------
   const filteredTasks = useMemo(() => {
     return tasks.filter((t) => {
-      if (filters.brandId !== "all" && t.brand?.id !== filters.brandId) {
+      if (
+        filters.brandId !== "all" &&
+        String(t.brand_id) !== String(filters.brandId)
+      ) {
         return false;
       }
       if (
         filters.assigneeId !== "all" &&
-        t.assignee?.id !== filters.assigneeId
+        String(t.assigned_to) !== String(filters.assigneeId)
       ) {
         return false;
       }
@@ -261,6 +268,18 @@ export default function TasksPage() {
     return `status-chip status-chip-${status}`;
   }
 
+  // helper: id se brand / member
+  function getBrandName(id) {
+    const b = brands.find((br) => String(br.id) === String(id));
+    return b?.name || "—";
+  }
+
+  function getMemberName(id) {
+    const m = members.find((mb) => String(mb.id) === String(id));
+    return m?.full_name || "—";
+  }
+
+  // ---------- RENDER ------------------------------------------------
   return (
     <div className="page-shell">
       {/* Header */}
@@ -323,7 +342,7 @@ export default function TasksPage() {
               <option value="all">Everyone</option>
               {members.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.full_name} ({m.role})
+                  {m.full_name}
                 </option>
               ))}
             </select>
@@ -393,12 +412,12 @@ export default function TasksPage() {
 
                   {/* Brand */}
                   <div className="table-team-lead">
-                    {t.brand?.name || "—"}
+                    {getBrandName(t.brand_id)}
                   </div>
 
                   {/* Assignee */}
                   <div className="table-team-lead">
-                    {t.assignee?.full_name || "—"}
+                    {getMemberName(t.assigned_to)}
                   </div>
 
                   {/* Priority */}
@@ -458,7 +477,7 @@ export default function TasksPage() {
                   </select>
                 </label>
 
-                {/* Assignee (sirf core_team) */}
+                {/* Assignee – only core_team */}
                 <label>
                   Assigned to
                   <select
@@ -470,9 +489,9 @@ export default function TasksPage() {
                     required
                   >
                     <option value="">Select team member…</option>
-                    {assignableMembers.map((m) => (
+                    {members.map((m) => (
                       <option key={m.id} value={m.id}>
-                        {m.full_name} ({m.role})
+                        {m.full_name}
                       </option>
                     ))}
                   </select>
