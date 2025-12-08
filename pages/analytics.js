@@ -38,7 +38,7 @@ export default function TaskAnalyticsPage() {
         supabase
           .from("tasks")
           .select("*")
-          .order("due_date", { ascending: true })
+          .order("deadline", { ascending: true }) // 👈 yahan change
           .order("created_at", { ascending: false }),
       ]);
 
@@ -99,11 +99,11 @@ export default function TaskAnalyticsPage() {
   ).length;
 
   const overdueTasks = filteredTasks.filter((t) => {
-    if (!t.due_date) return false;
-    const d = new Date(t.due_date);
-    d.setHours(0, 0, 0, 0);
-    return d < today && t.status !== "done";
-  }).length;
+  if (!t.deadline) return false;
+  const d = new Date(t.deadline);
+  d.setHours(0, 0, 0, 0);
+  return d < today && t.status !== "done";
+}).length;
 
   const completionRate =
     totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
@@ -259,7 +259,7 @@ export default function TaskAnalyticsPage() {
                           {owner?.full_name || "Unassigned"}
                         </div>
                         <div className="table-brand-sub">
-                          Due: {formatDate(task.due_date)}
+                          Due: {formatDate(task.deadline)}
                         </div>
                       </div>
 
