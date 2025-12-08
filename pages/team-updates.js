@@ -68,7 +68,8 @@ export default function TeamUpdatesPage() {
       setErrorMessage("");
 
       const [brandsRes, profilesRes, tasksRes] = await Promise.all([
-        supabase.from("brands").select("id, name").order("name", {
+        // ❗ yahan Brands capital B hai
+        supabase.from("Brands").select("id, name").order("name", {
           ascending: true,
         }),
         supabase.from("profiles").select("id, full_name, role"),
@@ -116,7 +117,7 @@ export default function TeamUpdatesPage() {
     return map;
   }, [profiles]);
 
-  // ✅ Sirf core_team members assignee dropdown me
+  // ✅ sirf core_team members assignee dropdown me
   const assignees = useMemo(
     () => profiles.filter((p) => p.role === "core_team"),
     [profiles]
@@ -428,7 +429,7 @@ export default function TeamUpdatesPage() {
                   </select>
                 </label>
 
-                {/* Assigned to – sirf core_team se aa raha hai */}
+                {/* Assigned to – sirf core_team */}
                 <label>
                   Assigned to
                   <select
