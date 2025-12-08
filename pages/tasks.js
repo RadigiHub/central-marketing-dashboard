@@ -56,6 +56,9 @@ const STATUS_LABELS = {
   blocked: "Blocked",
 };
 
+// ✅ sirf in roles ko assignee dropdown me dikhana hai
+const ASSIGNEE_ROLES = ["core_team"];
+
 export default function TasksPage() {
   const { profile } = useAuth();
   const role = profile?.role || null;
@@ -65,7 +68,6 @@ export default function TasksPage() {
 
   const [brands, setBrands] = useState([]);
   const [members, setMembers] = useState([]);
-
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -101,7 +103,7 @@ export default function TasksPage() {
         supabase
           .from("profiles")
           .select("id, full_name, role")
-          .in("role", ["core_team", "manager", "super_admin", "boss"])
+          .in("role", ASSIGNEE_ROLES) // ✅ sirf core_team
           .order("full_name", { ascending: true }),
       ]);
 
@@ -151,7 +153,7 @@ export default function TasksPage() {
 
     let rows = data || [];
 
-    // core_team user ko sirf apne tasks
+    // agar user khud core_team hai to sirf uske tasks
     if (role === "core_team") {
       rows = rows.filter((t) => t.assignee?.id === profile?.id);
     }
@@ -160,7 +162,7 @@ export default function TasksPage() {
   }
 
   function openModal() {
-    // defaults: pehla brand + pehla member
+    // defaults: pehla brand + pehla core_team member
     setForm((prev) => ({
       ...prev,
       brand_id: brands[0]?.id || "",
@@ -227,12 +229,15 @@ export default function TasksPage() {
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((t) => {
-      if (filters.brandId !== "all" && t.brand?.id !== filters.brandId) {
+      if (
+        filters.brandId !== "all" &&
+        String(t.brand?.id) !== String(filters.brandId)
+      ) {
         return false;
       }
       if (
         filters.assigneeId !== "all" &&
-        t.assignee?.id !== filters.assigneeId
+        String(t.assignee?.id) !== String(filters.assigneeId)
       ) {
         return false;
       }
@@ -448,7 +453,7 @@ export default function TasksPage() {
                   </select>
                 </label>
 
-                {/* Assignee */}
+                {/* Assignee – sirf core_team members */}
                 <label>
                   Assigned to
                   <select
@@ -474,7 +479,9 @@ export default function TasksPage() {
                   <select
                     className="select"
                     value={form.type}
-                    onChange={(e) => handleFormChange("type", e.target.value)}
+                    onChange={(e) =>
+                      handleFormChange("type", e.target.value)
+                    }
                   >
                     {TASK_TYPES.map((t) => (
                       <option key={t} value={t}>
