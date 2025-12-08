@@ -29,8 +29,6 @@ const STATUS_OPTIONS = [
   { value: "done", label: "Done" },
 ];
 
-const ASSIGNEE_ROLES = ["core_team", "manager"]; // yahan wale hi dropdown me ayenge
-
 // helper: blank form
 function emptyForm(defaultBrandId = "") {
   return {
@@ -118,9 +116,9 @@ export default function TeamUpdatesPage() {
     return map;
   }, [profiles]);
 
-  // sirf core_team + manager hi dropdown me
+  // ✅ Sirf core_team members assignee dropdown me
   const assignees = useMemo(
-    () => profiles.filter((p) => ASSIGNEE_ROLES.includes(p.role)),
+    () => profiles.filter((p) => p.role === "core_team"),
     [profiles]
   );
 
@@ -222,12 +220,16 @@ export default function TeamUpdatesPage() {
           <div>
             <h1 className="page-title">Team Tasks</h1>
             <p className="page-subtitle">
-              Har brand ke liye daily tasks – SEO, Content, Web, Ads, Creative
-              – sab ek jagah track.
+              Har brand ke liye daily tasks – SEO, Content, Web, Ads, Creative –
+              sab ek jagah track.
             </p>
           </div>
 
-          <button type="button" className="pill-filter" onClick={openNewTaskModal}>
+          <button
+            type="button"
+            className="pill-filter"
+            onClick={openNewTaskModal}
+          >
             <span>+ Assign New Task</span>
           </button>
         </div>
@@ -348,7 +350,9 @@ export default function TeamUpdatesPage() {
                         onClick={() => toggleTaskDone(task)}
                       >
                         <span>
-                          {task.status === "done" ? "Mark in progress" : "Mark done"}
+                          {task.status === "done"
+                            ? "Mark in progress"
+                            : "Mark done"}
                         </span>
                       </button>
                     </div>
@@ -375,7 +379,10 @@ export default function TeamUpdatesPage() {
                     className="input"
                     value={form.brand_id}
                     onChange={(e) =>
-                      setForm((prev) => ({ ...prev, brand_id: e.target.value }))
+                      setForm((prev) => ({
+                        ...prev,
+                        brand_id: e.target.value,
+                      }))
                     }
                   >
                     <option value="">Select brand…</option>
@@ -395,7 +402,10 @@ export default function TeamUpdatesPage() {
                     className="input"
                     value={form.due_date}
                     onChange={(e) =>
-                      setForm((prev) => ({ ...prev, due_date: e.target.value }))
+                      setForm((prev) => ({
+                        ...prev,
+                        due_date: e.target.value,
+                      }))
                     }
                   />
                 </label>
@@ -418,7 +428,7 @@ export default function TeamUpdatesPage() {
                   </select>
                 </label>
 
-                {/* Assigned to – yahan fix hai */}
+                {/* Assigned to – sirf core_team se aa raha hai */}
                 <label>
                   Assigned to
                   <select
