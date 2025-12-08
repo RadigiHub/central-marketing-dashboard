@@ -100,11 +100,9 @@ export default function TasksPage() {
           .from("Brands")
           .select("id, name")
           .order("name", { ascending: true }),
-
-        // dropdown me sirf core_team members
         supabase
           .from("profiles")
-          .select("id, full_name, role, email, work_email, contact_email")
+          .select("id, full_name, role, email")
           .eq("role", "core_team")
           .order("full_name", { ascending: true }),
       ]);
@@ -169,6 +167,27 @@ export default function TasksPage() {
   }
 
   // -----------------------------
+  // Helpers
+  // -----------------------------
+  function getBrandName(brand_id) {
+    const b = brands.find((br) => br.id === brand_id);
+    return b?.name || "—";
+  }
+
+  function getAssigneeName(user_id) {
+    const m = members.find((mb) => mb.id === user_id);
+    return m ? `${m.full_name} (${m.role})` : "—";
+  }
+
+  function priorityClass(priority) {
+    return `badge-priority badge-priority-${priority}`;
+  }
+
+  function statusClass(status) {
+    return `status-chip status-chip-${status}`;
+  }
+
+  // -----------------------------
   // Modal open/close
   // -----------------------------
   function openModal() {
@@ -205,7 +224,6 @@ export default function TasksPage() {
   // -----------------------------
   async function handleSubmit(e) {
     e.preventDefault();
-
     if (!form.brand_id || !form.title.trim() || !form.assigned_to) {
       alert("Brand, task title aur assignee required hain.");
       return;
@@ -226,7 +244,6 @@ export default function TasksPage() {
         created_by: profile?.id || null,
       };
 
-      // 1) Task DB me save karo
       const { error } = await supabase.from("tasks").insert([payload]);
 
       if (error) {
@@ -235,41 +252,28 @@ export default function TasksPage() {
         return;
       }
 
-      // 2) Assignee + brand ka data nikaalo
+      // --- Email notification ---
       const assignee = members.find((m) => m.id === payload.assigned_to);
-      const brand = brands.find((b) => b.id === payload.brand_id);
 
-      // Different column names se email try karo
-      const assigneeEmail =
-        assignee?.email ||
-        assignee?.work_email ||
-        assignee?.contact_email ||
-        null;
-
-      if (!assigneeEmail) {
-        console.warn(
-          "No email found for assignee id:",
-          payload.assigned_to,
-          assignee
-        );
+      if (!assignee || !assignee.email) {
+        console.warn("No email found for assignee id:", payload.assigned_to);
       } else {
-        // 3) Email notification API ko call karo
         try {
-          await fetch("/api/notify/task-assigned", {
+          await fetch("/api/notify-task", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              email: assigneeEmail,
-              brandName: brand?.name || "Unknown brand",
+              email: assignee.email,
+              brandName: getBrandName(payload.brand_id),
               title: payload.title,
               type: payload.type,
-              assigneeName: assignee?.full_name || "",
+              assigneeName: assignee.full_name,
               deadline: payload.deadline,
               description: payload.description,
             }),
           });
         } catch (notifyErr) {
-          console.error("Task saved but email send failed", notifyErr);
+          console.error("Error calling /api/notify-task", notifyErr);
         }
       }
 
@@ -300,25 +304,6 @@ export default function TasksPage() {
       return true;
     });
   }, [tasks, filters]);
-
-  function priorityClass(priority) {
-    return `badge-priority badge-priority-${priority}`;
-  }
-
-  function statusClass(status) {
-    return `status-chip status-chip-${status}`;
-  }
-
-  // Helpers to show names instead of IDs
-  function getBrandName(brand_id) {
-    const b = brands.find((br) => br.id === brand_id);
-    return b?.name || "—";
-  }
-
-  function getAssigneeName(user_id) {
-    const m = members.find((mb) => mb.id === user_id);
-    return m ? `${m.full_name} (${m.role})` : "—";
-  }
 
   // -----------------------------
   // UI
