@@ -6,12 +6,38 @@ import { AuthContext } from "../lib/auth";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 
+// 👇 yahan app version rakho – jab bhi koi bada change ho (auth / supabase / storage),
+// sirf is string ko change kar dena (v1 -> v2)
+const APP_VERSION = "cm-dashboard-v1";
+
 function MyApp({ Component, pageProps }) {
   const router = useRouter();
 
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // ✅ 1) YE useEffect SIRF CACHE / STORAGE HANDLE KAREGA
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const storedVersion = window.localStorage.getItem("cm_app_version");
+
+        if (storedVersion !== APP_VERSION) {
+          console.log("Clearing local cache because app version changed");
+
+          // purani keys, tokens, sab hata do
+          window.localStorage.clear();
+          window.sessionStorage.clear();
+
+          // apni new app version set kar do
+          window.localStorage.setItem("cm_app_version", APP_VERSION);
+        }
+      } catch (err) {
+        console.error("Error while clearing cache", err);
+      }
+    }
+  }, []); // 👈 sirf first load per chalega
 
   // ✅ helper: profile load karna
   async function fetchProfile(currentUser) {
@@ -34,6 +60,7 @@ function MyApp({ Component, pageProps }) {
     }
   }
 
+  // ✅ 2) YE wala useEffect tumhara existing auth + routing handle kar raha hai
   useEffect(() => {
     let ignore = false;
 
