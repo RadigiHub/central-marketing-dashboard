@@ -7,9 +7,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const supabase =
-  supabaseUrl && serviceKey
-    ? createClient(supabaseUrl, serviceKey)
-    : null;
+  supabaseUrl && serviceKey ? createClient(supabaseUrl, serviceKey) : null;
 
 export default async function handler(req, res) {
   if (req.method !== "GET" && req.method !== "POST") {
@@ -17,34 +15,16 @@ export default async function handler(req, res) {
   }
 
   if (!supabase) {
-    return res
-      .status(500)
-      .json({ ok: false, error: "supabase-not-configured" });
+    return res.status(500).json({ ok: false, error: "supabase-not-configured" });
   }
 
   try {
-    const to =
-      (req.body && req.body.to) || process.env.DAILY_SUMMARY_EMAIL_TO;
-
-    if (!to) {
-      return res
-        .status(400)
-        .json({ ok: false, error: "missing-recipient-email" });
-    }
+    // 🔥 FINAL FIXED RECIPIENTS (no env needed now)
+    const recipients = ["azaz@timestravel.co.uk", "haris@timestravel.com"];
 
     const now = new Date();
-
-    // Aaj ka start / end (UTC based – simple version)
-    const startOfDay = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate()
-    );
-    const endOfDay = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate() + 1
-    );
+    const startOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const endOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
 
     const { data: tasks, error } = await supabase
       .from("tasks")
@@ -59,7 +39,7 @@ export default async function handler(req, res) {
     }
 
     await sendDailySummaryEmail({
-      to,
+      to: recipients, // ⭐ Now sends to both
       date: now,
       tasks: tasks || [],
     });
@@ -67,11 +47,9 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true });
   } catch (err) {
     console.error("notify/daily-summary error:", err);
-    const message =
-      err && typeof err.message === "string"
-        ? err.message
-        : "unknown-error";
-
-    return res.status(500).json({ ok: false, error: message });
+    return res.status(500).json({
+      ok: false,
+      error: err?.message || "unknown-error",
+    });
   }
 }
