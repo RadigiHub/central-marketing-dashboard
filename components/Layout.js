@@ -10,11 +10,8 @@ const navItems = [
   { href: "/my-day", label: "My Day" },
   { href: "/team", label: "Team" },
   { href: "/team-updates", label: "Team Updates" },
-  // 👉 yeh nayi line add karo
   { href: "/tasks", label: "Tasks" },
   { href: "/analytics", label: "Analytics" },
-
-  // 👇 yeh do line wapas add ki hain
   { href: "/brand-analytics", label: "Brand Analytics" },
   { href: "/add-data", label: "Add Data" },
 ];
@@ -62,8 +59,23 @@ export default function Layout({ children }) {
     displayRole = "Central Marketing – Core Team";
   }
 
+  // 🔴 UPDATED LOGOUT: supabase signOut + browser storage clear
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error("Logout error:", err);
+    }
+
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.clear();
+        window.sessionStorage.clear();
+      } catch (err) {
+        console.error("Error clearing browser storage on logout:", err);
+      }
+    }
+
     router.replace("/login");
   };
 
