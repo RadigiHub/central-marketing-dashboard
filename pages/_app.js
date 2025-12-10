@@ -6,9 +6,10 @@ import { AuthContext } from "../lib/auth";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 
-// 👇 yahan app version rakho – jab bhi koi bada change ho (auth / supabase / storage),
-// sirf is string ko change kar dena (v1 -> v2)
-const APP_VERSION = "cm-dashboard-v1";
+// ✅ yahan version control
+// jab bhi bada change ho, is value ko change kar dena (v2, v3, v4 ...)
+const APP_VERSION = "cm-dashboard-v3";
+const APP_STORAGE_KEY = "cm-dashboard-version";
 
 function MyApp({ Component, pageProps }) {
   const router = useRouter();
@@ -17,29 +18,7 @@ function MyApp({ Component, pageProps }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // ✅ 1) YE useEffect SIRF CACHE / STORAGE HANDLE KAREGA
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const storedVersion = window.localStorage.getItem("cm_app_version");
-
-        if (storedVersion !== APP_VERSION) {
-          console.log("Clearing local cache because app version changed");
-
-          // purani keys, tokens, sab hata do
-          window.localStorage.clear();
-          window.sessionStorage.clear();
-
-          // apni new app version set kar do
-          window.localStorage.setItem("cm_app_version", APP_VERSION);
-        }
-      } catch (err) {
-        console.error("Error while clearing cache", err);
-      }
-    }
-  }, []); // 👈 sirf first load per chalega
-
-  // ✅ helper: profile load karna
+  // helper: profile load karna
   async function fetchProfile(currentUser) {
     if (!currentUser) {
       setProfile(null);
@@ -60,36 +39,78 @@ function MyApp({ Component, pageProps }) {
     }
   }
 
-  // ✅ 2) YE wala useEffect tumhara existing auth + routing handle kar raha hai
   useEffect(() => {
     let ignore = false;
+
+    // ✅ 1) Version check + storage clear
+    if (typeof window !== "undefined") {
+      try {
+        const storedVersion = localStorage.getItem(APP_STORAGE_KEY);
+
+        if (storedVersion !== APP_VERSION) {
+          // Purane supabase tokens clear
+          Object.keys(localStorage).forEach((key) => {
+            if (key.startsWith("sb-")) {
+              localStorage.removeItem(key);
+            }
+          });
+
+          sessionStorage.clear();
+          localStorage.setItem(APP_STORAGE_KEY, APP_VERSION);
+          console.log("Storage reset due to version change:", APP_VERSION);
+        }
+      } catch (e) {
+        console.warn("Error clearing storage on version check:", e);
+      }
+    }
 
     async function initAuth() {
       setLoading(true);
 
-      const { data, error } = await supabase.auth.getUser();
-      const currentUser = data?.user ?? null;
+      try {
+        const { data, error } = await supabase.auth.getUser();
 
-      if (ignore) return;
+        if (error) {
+          // agar token corrupt ho, force sign out + storage clear
+          console.error("supabase.auth.getUser error:", error);
 
-      setUser(currentUser);
+          if (typeof window !== "undefined") {
+            Object.keys(localStorage).forEach((key) => {
+              if (key.startsWith("sb-")) localStorage.removeItem(key);
+            });
+            sessionStorage.clear();
+          }
 
-      if (currentUser) {
-        await fetchProfile(currentUser);
-
-        // agar login page par ho aur already logged in ho
-        if (router.pathname === "/login") {
-          router.replace("/");
+          await supabase.auth.signOut();
         }
-      } else {
+
+        const currentUser = data?.user ?? null;
+        if (ignore) return;
+
+        setUser(currentUser);
+
+        if (currentUser) {
+          await fetchProfile(currentUser);
+
+          if (router.pathname === "/login") {
+            router.replace("/");
+          }
+        } else {
+          setProfile(null);
+          if (router.pathname !== "/login") {
+            router.replace("/login");
+          }
+        }
+      } catch (e) {
+        console.error("initAuth fatal error:", e);
+        setUser(null);
         setProfile(null);
-        // koi user nahi -> login page par bhej do
         if (router.pathname !== "/login") {
           router.replace("/login");
         }
+      } finally {
+        if (!ignore) setLoading(false);
       }
-
-      setLoading(false);
     }
 
     initAuth();
