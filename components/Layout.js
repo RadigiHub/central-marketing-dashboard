@@ -4,11 +4,14 @@ import { useRouter } from "next/router";
 import supabase from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 
+// 👇 yeh key _app.js wale APP_STORAGE_KEY se match honi chahiye
+const APP_STORAGE_KEY = "cm-dashboard-v1";
+
 const navItems = [
   { href: "/", label: "Dashboard" },
   { href: "/brands", label: "Brands" },
   { href: "/my-day", label: "My Day" },
-  { href: "/my-tasks", label: "My Tasks" }, // 👈 yeh nayi line
+  { href: "/my-tasks", label: "My Tasks" }, // ✅ new tab
   { href: "/team", label: "Team" },
   { href: "/team-updates", label: "Team Updates" },
   { href: "/tasks", label: "Tasks" },
@@ -33,14 +36,16 @@ export default function Layout({ children }) {
     // boss: sab dikhega, sirf My Day HIDE
     visibleNavItems = navItems.filter((item) => item.href !== "/my-day");
   } else if (role === "manager") {
-    // manager: dashboard + brands + team + team updates
+    // manager: dashboard + brands + team + team updates + my-tasks
     visibleNavItems = navItems.filter((item) =>
-      ["/", "/brands", "/team", "/team-updates"].includes(item.href)
+      ["/", "/brands", "/team", "/team-updates", "/my-tasks"].includes(
+        item.href
+      )
     );
   } else if (role === "core_team") {
-    // core team: dashboard + My Day + team updates
+    // core team: dashboard + My Day + team updates + my-tasks
     visibleNavItems = navItems.filter((item) =>
-      ["/", "/my-day", "/team-updates"].includes(item.href)
+      ["/", "/my-day", "/team-updates", "/my-tasks"].includes(item.href)
     );
   } else {
     // unknown role: sirf dashboard
@@ -60,23 +65,17 @@ export default function Layout({ children }) {
     displayRole = "Central Marketing – Core Team";
   }
 
-  // 🔴 UPDATED LOGOUT: supabase signOut + browser storage clear
   const handleLogout = async () => {
     try {
-      await supabase.auth.signOut();
-    } catch (err) {
-      console.error("Logout error:", err);
+      // ✅ local storage + cache clear so next login clean ho
+      localStorage.removeItem(APP_STORAGE_KEY);
+      localStorage.removeItem("sb-gnvdwmlpfqwmikkoanqddboz"); // supabase key, browser khud alag name rakhe to ignore
+      sessionStorage.clear();
+    } catch (e) {
+      console.warn("Storage clear error on logout:", e);
     }
 
-    if (typeof window !== "undefined") {
-      try {
-        window.localStorage.clear();
-        window.sessionStorage.clear();
-      } catch (err) {
-        console.error("Error clearing browser storage on logout:", err);
-      }
-    }
-
+    await supabase.auth.signOut();
     router.replace("/login");
   };
 
