@@ -8,6 +8,7 @@ const navItems = [
   { href: "/", label: "Dashboard" },
   { href: "/brands", label: "Brands" },
   { href: "/my-day", label: "My Day" },
+  { href: "/my-tasks", label: "My Tasks" }, // 👈 yeh nayi line
   { href: "/team", label: "Team" },
   { href: "/team-updates", label: "Team Updates" },
   { href: "/tasks", label: "Tasks" },
